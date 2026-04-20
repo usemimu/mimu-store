@@ -1,0 +1,68 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{vue,js,ts,jsx,tsx}",
+  ],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        clay: {
+          50: '#FBF4F0',
+          100: '#F4E3D7',
+          200: '#E8C5AC',
+          300: '#D9A07B',
+          400: '#C8774C',
+          500: '#B55430',
+          600: '#974127',
+          700: '#79321E',
+          800: '#5A2416',
+          900: '#37150C',
+        },
+        moss: {
+          50: '#EEF5F1',
+          100: '#D2E9DA',
+          200: '#A4D2B4',
+          300: '#6EB489',
+          400: '#479462',
+          500: '#2B7244',
+          600: '#215836',
+          700: '#184028',
+          800: '#102A1B',
+          900: '#091A10',
+        },
+        gold: {
+          50: '#FCF7E8',
+          100: '#F7ECC4',
+          200: '#EDD88A',
+          300: '#E0BF50',
+          400: '#CFA430',
+          500: '#B4881C',
+          600: '#8D6A15',
+          700: '#684E0F',
+          800: '#44330A',
+          900: '#261E05',
+        },
+        neutral: {
+          50: '#F7F5F2',
+          100: '#EDE9E3',
+          200: '#DDD8D0',
+          300: '#C5BDB3',
+          400: '#A89F94',
+          500: '#7E766C',
+          600: '#5E574F',
+          700: '#403C36',
+          800: '#282420',
+          900: '#0E0D0B',
+        },
+      },
+      fontFamily: {
+        display: ['Cormorant', 'Georgia', 'serif'],
+        body: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Courier New', 'monospace'],
+      },
+    },
+  },
+  plugins: [],
+}

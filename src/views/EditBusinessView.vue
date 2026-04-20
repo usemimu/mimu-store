@@ -1,0 +1,109 @@
+<template>
+  <div class="min-h-screen pb-20 lg:pb-0">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-12">
+      <!-- Back Button -->
+      <button
+        @click="$router.back()"
+        class="flex items-center gap-2 mb-6 text-sm font-semibold bg-transparent border-none cursor-pointer hover:opacity-70 transition-opacity"
+        :style="{ color: fg2 }"
+      >
+        <PhArrowLeft :size="18" /> Back
+      </button>
+
+      <!-- Page Header -->
+      <div class="mb-6 lg:mb-10">
+        <h1 class="text-3xl lg:text-4xl font-display font-light tracking-tight" :style="{ color: fg }">
+          Edit Business Details
+        </h1>
+        <p class="mt-2 text-sm lg:text-base" :style="{ color: fg2 }">
+          Update your business information
+        </p>
+      </div>
+
+      <!-- Form -->
+      <div
+        class="rounded-2xl p-6 lg:p-8 mb-6"
+        :style="{
+          background: cardBg,
+          border: cardBorder,
+          boxShadow: cardShadow
+        }"
+      >
+        <div class="space-y-5">
+          <div v-for="(field, i) in businessFields" :key="i">
+            <label class="text-sm font-semibold mb-2 block" :style="{ color: fg }">
+              {{ field.label }}
+            </label>
+            <input
+              v-model="field.value"
+              :type="field.type || 'text'"
+              class="w-full rounded-xl py-3 px-4 text-base"
+              :style="{
+                background: inputBg,
+                border: `1.5px solid ${inputBorder}`,
+                color: fg
+              }"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3">
+        <button
+          @click="$router.back()"
+          class="flex-1 bg-transparent border-none rounded-xl font-body text-base font-bold py-3 px-4 cursor-pointer transition-colors"
+          :style="{
+            border: `1.5px solid ${inputBorder}`,
+            color: fg
+          }"
+        >
+          Cancel
+        </button>
+        <button
+          @click="handleSave"
+          class="flex-1 bg-clay-500 text-white border-none rounded-xl font-body text-base font-bold py-3 px-4 cursor-pointer hover:bg-clay-600 transition-colors"
+        >
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { PhArrowLeft } from '@phosphor-icons/vue'
+
+const props = defineProps({
+  dark: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const router = useRouter()
+
+const businessFields = ref([
+  { label: 'Business Name', value: 'Apex Pharmacy' },
+  { label: 'Category', value: 'Pharmacy' },
+  { label: 'Address', value: '14 Ogunlana Drive, Surulere' },
+  { label: 'LGA', value: 'Surulere, Lagos' },
+  { label: 'Phone Number', value: '+234 803 456 7890', type: 'tel' },
+  { label: 'Email', value: 'apex.pharmacy@email.com', type: 'email' }
+])
+
+const fg = computed(() => props.dark ? '#F2EFE9' : '#0E0D0B')
+const fg2 = computed(() => props.dark ? '#A89F94' : '#5E574F')
+const cardBg = computed(() => props.dark ? '#1A1815' : '#fff')
+const cardBorder = computed(() => props.dark ? '1px solid rgba(255,255,255,0.08)' : 'none')
+const cardShadow = computed(() => props.dark ? 'none' : '0 1px 3px rgba(14,13,11,0.08)')
+const inputBorder = computed(() => props.dark ? 'rgba(255,255,255,0.12)' : '#DDD8D0')
+const inputBg = computed(() => props.dark ? '#1A1815' : '#fff')
+
+const handleSave = () => {
+  // Save changes
+  router.push('/account')
+}
+</script>
