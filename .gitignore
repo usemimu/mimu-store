@@ -22,8 +22,7 @@ dist-ssr
 # Project-specific ignores
 M Logo Explorations.html
 index-react-original.html
-assets/
-uploads/
+
 .qodo/
 .claude/
 
