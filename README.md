@@ -64,7 +64,7 @@ The app uses a custom design system based on the mìmú brand:
 
 All design tokens are defined in `src/assets/design-system.css` and extended in Tailwind config.
 
-## 📦 Project Structure
+## Project Structure
 
 ```
 app/
@@ -113,6 +113,6 @@ The app is configured as a PWA with:
 - Caching strategies for fonts and assets
 - Mobile-optimized viewport
 
-## 📝 License
+##  License
 
 Copyright © 2026 mìmú

@@ -8,33 +8,42 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      injectRegister: false,
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'mìmú for Hosts',
-        short_name: 'mìmú Hosts',
+        short_name: 'Store',
         description: 'Track your mìmú screen earnings, check status, and get paid.',
         theme_color: '#B55430',
         background_color: '#F7F5F2',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module'
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],

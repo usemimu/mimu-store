@@ -4,6 +4,7 @@ import { RouterView, useRoute } from 'vue-router'
 import { useAppState } from './composables/useAppState'
 import Header from './components/Header.vue'
 import Sidebar from './components/Sidebar.vue'
+import PWAPrompt from './components/PWAPrompt.vue'
 
 const route = useRoute()
 const { dark } = useAppState()
@@ -47,6 +48,8 @@ const showNavigation = computed(() => {
         </router-link>
       </div>
     </nav>
+
+    <PWAPrompt :dark="dark" />
   </div>
 </template>
 
