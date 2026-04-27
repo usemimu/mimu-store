@@ -121,7 +121,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
 import { PhCalendarBlank, PhHeart, PhTrophy } from '@phosphor-icons/vue'
+import { earningsApi } from '../api/earnings'
 
 const props = defineProps({
   dark: { type: Boolean, default: false }
@@ -142,14 +144,62 @@ const periods = [
   { id: 'alltime', label: 'All time' }
 ]
 
-const data = {
-  today: { earned: '₦1,840', plays: 428, status: 'Online', since: '2 min ago' },
-  week: { earned: '₦12,600', plays: 2940, status: 'Online', since: '2 min ago' },
-  month: { earned: '₦48,200', plays: 11240, status: 'Online', since: '2 min ago' },
-  alltime: { earned: '₦214,700', plays: 52800, status: 'Online', since: '2 min ago' }
+// Earnings summary — single round-trip; we project per-period KPIs out of
+// whatever shape the backend returns.
+const summaryQuery = useQuery({
+  queryKey: ['host', 'earnings', 'summary'],
+  queryFn: () => earningsApi.summary(),
+})
+
+// Daily buckets — drives the bar chart at the bottom of the dashboard.
+const byDayQuery = useQuery({
+  queryKey: ['host', 'earnings', 'by-day'],
+  queryFn: () => earningsApi.byDay(),
+})
+
+/** Convert kobo or naira value (string|number) → integer naira. */
+function toNaira(value) {
+  if (value == null) return 0
+  if (typeof value === 'object') {
+    if (value.kobo != null) return Math.round(Number(value.kobo) / 100)
+    if (value.naira != null) return Number(value.naira)
+  }
+  const n = typeof value === 'string' ? Number(value) : value
+  if (!Number.isFinite(n)) return 0
+  // Heuristic: very large numbers are kobo; otherwise treat as naira.
+  return n > 1_000_000 ? Math.round(n / 100) : Math.round(n)
 }
 
-const currentData = computed(() => data[period.value])
+function formatNaira(n) {
+  return `₦${n.toLocaleString('en-NG')}`
+}
+
+/** Pick the right slice from the summary response for the active period. */
+function periodSlice(summary, periodId) {
+  if (!summary) return null
+  // Most likely shapes (best-effort):
+  //   { today: {...}, week: {...}, month: {...}, alltime: {...} }
+  //   { today: {grossKobo, plays}, ... }
+  if (summary[periodId]) return summary[periodId]
+  // Flat shape: keys like todayGrossKobo / weekGrossKobo
+  return summary
+}
+
+const currentData = computed(() => {
+  const slice = periodSlice(summaryQuery.data.value, period.value) || {}
+  const grossNaira = toNaira(
+    slice.grossKobo ?? slice.gross ?? slice.amountKobo ?? slice.amount ?? slice.earned,
+  )
+  const plays = slice.plays ?? slice.impressions ?? 0
+  const lastSeen = slice.lastSeenAt || slice.since || '—'
+  return {
+    earned: formatNaira(grossNaira),
+    plays,
+    status: slice.status || 'Online',
+    since: typeof lastSeen === 'string' ? lastSeen : '—',
+  }
+})
+
 const periodLabel = computed(() => {
   switch (period.value) {
     case 'today': return 'Earned today'
@@ -160,5 +210,15 @@ const periodLabel = computed(() => {
   }
 })
 
-const bars = [30, 50, 65, 80, 72, 60, 45, 55, 78, 92, 88, 70, 58, 42, 50, 68, 84, 95, 80, 65, 52, 44, 60, 70]
+/** Drive the chart from `/earnings/by-day` if available, else placeholder. */
+const bars = computed(() => {
+  const raw = byDayQuery.data.value
+  if (!raw) return [30, 50, 65, 80, 72, 60, 45, 55, 78, 92, 88, 70, 58, 42, 50, 68, 84, 95, 80, 65, 52, 44, 60, 70]
+  const series = Array.isArray(raw) ? raw : raw.data || raw.items || raw.days || []
+  if (!series.length) return []
+  const values = series.map((d) => toNaira(d.grossKobo ?? d.amountKobo ?? d.amount ?? d.value))
+  const max = Math.max(...values, 1)
+  // Normalise to 0..100 for the bar render.
+  return values.map((v) => Math.round((v / max) * 100))
+})
 </script>

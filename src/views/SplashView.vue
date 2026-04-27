@@ -11,6 +11,7 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Logo from '../components/Logo.vue'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   dark: {
@@ -20,15 +21,12 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const auth = useAuthStore()
 
 onMounted(() => {
+  // Brief brand-pause so the splash is visible on fast loads.
   setTimeout(() => {
-    const isAuthenticated = localStorage.getItem('mimu-authenticated')
-    if (isAuthenticated === 'true') {
-      router.push('/dashboard')
-    } else {
-      router.push('/login')
-    }
-  }, 2000)
+    router.replace(auth.isAuthenticated ? '/dashboard' : '/login')
+  }, 800)
 })
 </script>

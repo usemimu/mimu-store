@@ -5,12 +5,13 @@ import { useAppState } from './composables/useAppState'
 import Header from './components/Header.vue'
 import Sidebar from './components/Sidebar.vue'
 import PWAPrompt from './components/PWAPrompt.vue'
+import ToastHost from './components/ToastHost.vue'
 
 const route = useRoute()
 const { dark } = useAppState()
 
 const showNavigation = computed(() => {
-  const publicRoutes = ['splash', 'login', 'signup', 'onboarding']
+  const publicRoutes = ['splash', 'login', 'signup', 'forgot-password', 'onboarding']
   return !publicRoutes.includes(route.name)
 })
 </script>
@@ -50,6 +51,7 @@ const showNavigation = computed(() => {
     </nav>
 
     <PWAPrompt :dark="dark" />
+    <ToastHost />
   </div>
 </template>
 

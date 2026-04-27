@@ -26,10 +26,10 @@
             Total earned
           </div>
           <div class="font-display text-5xl lg:text-6xl font-light tracking-tight mb-2" :style="{ color: fg }">
-            ₦214,700
+            {{ totalEarned }}
           </div>
           <div class="text-sm" :style="{ color: fg3 }">
-            Since Oct 2024 · 26 payouts
+            {{ sinceLabel }}
           </div>
         </div>
 
@@ -46,9 +46,56 @@
             Next payout
           </div>
           <div class="font-display text-5xl lg:text-6xl font-light tracking-tight mb-2 text-clay-500">
-            ₦12,600
+            {{ upcomingNet }}
           </div>
-          <div class="text-sm" :style="{ color: fg3 }">Friday, Apr 25</div>
+          <div class="text-sm mb-4" :style="{ color: fg3 }">{{ upcomingDate }}</div>
+          <button
+            type="button"
+            class="text-xs font-semibold text-clay-500 hover:text-clay-600 bg-transparent border-none cursor-pointer"
+            @click="showEarlyModal = true"
+          >
+            Need it sooner? Request early payout →
+          </button>
+        </div>
+      </div>
+
+      <!-- Early payout modal -->
+      <div
+        v-if="showEarlyModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="background: rgba(0,0,0,0.5)"
+        @click.self="showEarlyModal = false"
+      >
+        <div class="w-full max-w-md rounded-2xl p-6" :style="{ background: cardBg, border: cardBorder }">
+          <h3 class="text-lg font-bold mb-2" :style="{ color: fg }">Request early payout</h3>
+          <p class="text-sm mb-4" :style="{ color: fg3 }">
+            Pays out your current balance now (subject to ops review). Minimum balance is ₦20,000.
+          </p>
+          <textarea
+            v-model="earlyReason"
+            rows="3"
+            placeholder="Why do you need this early? (10–500 characters)"
+            class="w-full rounded-xl py-2 px-3 text-sm mb-4"
+            :style="{ background: cardBg, border: '1.5px solid #DDD8D0', color: fg }"
+          />
+          <div class="flex gap-3">
+            <button
+              type="button"
+              class="flex-1 rounded-xl text-sm font-bold py-2.5 px-4 cursor-pointer"
+              :style="{ border: '1.5px solid #DDD8D0', color: fg, background: 'transparent' }"
+              @click="showEarlyModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              :disabled="earlyBusy || earlyReason.trim().length < 10"
+              class="flex-1 bg-clay-500 text-white border-none rounded-xl text-sm font-bold py-2.5 px-4 cursor-pointer hover:bg-clay-600 disabled:opacity-60"
+              @click="onEarlyRequest"
+            >
+              {{ earlyBusy ? 'Submitting…' : 'Submit request' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -99,7 +146,7 @@
             <div class="flex-1">
               <div class="text-sm lg:text-base font-semibold" :style="{ color: fg }">{{ p.label }}</div>
               <div class="text-xs lg:text-sm mt-1" :style="{ color: fg3 }">
-                {{ p.date }} · GTBank · ••3421
+                {{ p.date }}<span v-if="p.bankName"> · {{ p.bankName }}</span><span v-if="p.bankTail"> · ••{{ p.bankTail }}</span>
               </div>
             </div>
             <div>
@@ -116,8 +163,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { PhInfo, PhBank } from '@phosphor-icons/vue'
+import { earningsApi } from '../api/earnings'
+import { payoutsApi } from '../api/payouts'
+import { useToastStore } from '../stores/toast'
 
 const props = defineProps({
   dark: {
@@ -134,10 +185,119 @@ const cardBorder = computed(() => props.dark ? '1px solid rgba(255,255,255,0.08)
 const cardShadow = computed(() => props.dark ? 'none' : '0 1px 3px rgba(14,13,11,0.08)')
 const divLine = computed(() => props.dark ? 'rgba(255,255,255,0.06)' : '#F2EFE9')
 
-const payouts = [
-  { date: 'Apr 18, 2026', amount: 12600, status: 'paid', label: 'This week (estimated)' },
-  { date: 'Apr 11, 2026', amount: 11200, status: 'paid', label: 'Last week' },
-  { date: 'Apr 4, 2026', amount: 13400, status: 'paid', label: 'Apr 4 week' },
-  { date: 'Mar 28, 2026', amount: 10800, status: 'paid', label: 'Mar 28 week' }
-]
+const summaryQuery = useQuery({
+  queryKey: ['host', 'earnings', 'summary'],
+  queryFn: () => earningsApi.summary(),
+})
+const upcomingQuery = useQuery({
+  queryKey: ['host', 'payouts', 'upcoming'],
+  queryFn: () => payoutsApi.upcoming(),
+})
+const historyQuery = useQuery({
+  queryKey: ['host', 'payouts', 'history'],
+  queryFn: () => payoutsApi.history(),
+})
+
+function toNaira(value) {
+  if (value == null) return 0
+  if (typeof value === 'object') {
+    if (value.kobo != null) return Math.round(Number(value.kobo) / 100)
+    if (value.naira != null) return Number(value.naira)
+  }
+  const n = typeof value === 'string' ? Number(value) : value
+  if (!Number.isFinite(n)) return 0
+  return n > 1_000_000 ? Math.round(n / 100) : Math.round(n)
+}
+
+function formatNaira(n) {
+  return `₦${n.toLocaleString('en-NG')}`
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleDateString('en-NG', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  } catch {
+    return iso
+  }
+}
+
+const totalEarned = computed(() => {
+  const s = summaryQuery.data.value || {}
+  return formatNaira(toNaira(s.totalGrossKobo ?? s.totalGross ?? s.lifetimeKobo ?? s.total))
+})
+
+const totalPayoutsCount = computed(() => {
+  const list = extractList(historyQuery.data.value)
+  return list.length
+})
+
+const sinceLabel = computed(() => {
+  const list = extractList(historyQuery.data.value)
+  const oldest = list[list.length - 1]
+  if (!oldest) return '—'
+  return `Since ${formatDate(oldest.paidAt || oldest.createdAt)} · ${list.length} payouts`
+})
+
+const upcoming = computed(() => upcomingQuery.data.value || {})
+const upcomingNet = computed(() =>
+  formatNaira(toNaira(upcoming.value.netKobo ?? upcoming.value.net ?? upcoming.value.amountKobo)),
+)
+const upcomingDate = computed(() =>
+  formatDate(upcoming.value.scheduledFor || upcoming.value.payoutDate),
+)
+
+function extractList(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  return raw.data || raw.items || raw.payouts || []
+}
+
+const payouts = computed(() => {
+  const list = extractList(historyQuery.data.value)
+  return list.map((p) => ({
+    date: formatDate(p.paidAt || p.createdAt),
+    amount: toNaira(p.netKobo ?? p.amountKobo ?? p.net ?? p.amount),
+    status: p.status || 'paid',
+    label: p.label || p.periodLabel || (p.paidAt ? 'Payout' : 'Pending'),
+    bankTail: (p.bankAccount?.accountNumber || '').slice(-4),
+    bankName: p.bankAccount?.bankName || '',
+  }))
+})
+
+const toast = useToastStore()
+const qc = useQueryClient()
+const showEarlyModal = ref(false)
+const earlyReason = ref('')
+const earlyBusy = ref(false)
+
+async function onEarlyRequest() {
+  const reason = earlyReason.value.trim()
+  if (reason.length < 10 || reason.length > 500) {
+    toast.error('Reason must be 10–500 characters.')
+    return
+  }
+  earlyBusy.value = true
+  try {
+    await payoutsApi.earlyRequest(reason)
+    toast.success('Request submitted. Ops will review shortly.')
+    showEarlyModal.value = false
+    earlyReason.value = ''
+    await qc.invalidateQueries({ queryKey: ['host', 'payouts'] })
+  } catch (err) {
+    if (err?.status === 402) {
+      toast.error('Balance must be at least ₦20,000.')
+    } else if (err?.status === 409) {
+      toast.error('You already have a pending early-payout request.')
+    } else {
+      toast.error(err?.message || 'Could not submit request.')
+    }
+  } finally {
+    earlyBusy.value = false
+  }
+}
 </script>
