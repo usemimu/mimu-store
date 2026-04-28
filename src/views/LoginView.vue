@@ -27,7 +27,7 @@
             v-model="phoneOrEmail"
             type="text"
             autocomplete="username"
-            placeholder="+2348012345678 or you@example.com"
+            placeholder=""
             class="w-full rounded-xl py-3 px-4 text-base"
             :style="{ background: inputBg, border: `1.5px solid ${inputBorder}`, color: fg }"
           />
