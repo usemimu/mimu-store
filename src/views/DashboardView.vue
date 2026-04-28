@@ -57,21 +57,21 @@
             Next Payout
           </div>
           <div class="font-display text-3xl font-medium mb-1" :style="{ color: fg }">
-            ₦12,600
+            {{ nextPayout.amount }}
           </div>
-          <div class="text-xs" :style="{ color: fg3 }">Friday, Apr 25</div>
+          <div class="text-xs" :style="{ color: fg3 }">{{ nextPayout.label }}</div>
         </div>
 
         <!-- Screen Health Card -->
         <div class="rounded-2xl p-6" :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }">
-          <PhHeart :size="24" class="text-moss-500 mb-3" />
+          <PhHeart :size="24" :class="screenHealth.iconClass" class="mb-3" />
           <div class="text-xs font-semibold tracking-wider uppercase mb-2" :style="{ color: fg3 }">
             Screen Health
           </div>
           <div class="font-display text-3xl font-medium mb-1" :style="{ color: fg }">
-            100%
+            {{ screenHealth.headline }}
           </div>
-          <div class="text-xs" :style="{ color: fg3 }">All systems normal</div>
+          <div class="text-xs" :style="{ color: fg3 }">{{ screenHealth.detail }}</div>
         </div>
       </div>
 
@@ -96,7 +96,9 @@
           </div>
         </div>
 
-        <!-- Milestone -->
+        <!-- Lifetime tile — replaces the static "milestone" placeholder.
+             Backend doesn't expose a milestones endpoint yet, so we surface
+             lifetime earnings + plays from the summary response instead. -->
         <div
           class="rounded-2xl p-6"
           :style="{
@@ -108,10 +110,10 @@
             <PhTrophy :size="28" class="text-white" />
           </div>
           <h3 class="text-lg font-bold mb-2" :class="dark ? 'text-moss-300' : 'text-moss-600'">
-            First ₦200k earned
+            {{ lifetime.headline }}
           </h3>
           <p class="text-sm" :style="{ color: fg2 }">
-            You hit this milestone last week. 6 months on the mìmú network.
+            {{ lifetime.detail }}
           </p>
         </div>
       </div>
@@ -124,6 +126,8 @@ import { ref, computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { PhCalendarBlank, PhHeart, PhTrophy } from '@phosphor-icons/vue'
 import { earningsApi } from '../api/earnings'
+import { payoutsApi } from '../api/payouts'
+import { screensApi } from '../api/screens'
 
 const props = defineProps({
   dark: { type: Boolean, default: false }
@@ -155,6 +159,20 @@ const summaryQuery = useQuery({
 const byDayQuery = useQuery({
   queryKey: ['host', 'earnings', 'by-day'],
   queryFn: () => earningsApi.byDay(),
+})
+
+// Next-payout card.
+const upcomingQuery = useQuery({
+  queryKey: ['host', 'payouts', 'upcoming'],
+  queryFn: () => payoutsApi.upcoming(),
+})
+
+// Screen-health card. The host typically has one screen; we show the
+// status of the first one in the list. If they have several, we degrade
+// to the worst status — that's the one ops needs to see.
+const screensQuery = useQuery({
+  queryKey: ['host', 'screens'],
+  queryFn: () => screensApi.list(),
 })
 
 /** Convert kobo or naira value (string|number) → integer naira. */
@@ -210,15 +228,111 @@ const periodLabel = computed(() => {
   }
 })
 
-/** Drive the chart from `/earnings/by-day` if available, else placeholder. */
+/**
+ * Drive the chart from `/earnings/by-day`. While loading or on error we
+ * return an empty array so the chart shows nothing rather than fake bars
+ * — the empty state is honest, the fake bars are not.
+ */
 const bars = computed(() => {
   const raw = byDayQuery.data.value
-  if (!raw) return [30, 50, 65, 80, 72, 60, 45, 55, 78, 92, 88, 70, 58, 42, 50, 68, 84, 95, 80, 65, 52, 44, 60, 70]
+  if (!raw) return []
   const series = Array.isArray(raw) ? raw : raw.data || raw.items || raw.days || []
   if (!series.length) return []
   const values = series.map((d) => toNaira(d.grossKobo ?? d.amountKobo ?? d.amount ?? d.value))
   const max = Math.max(...values, 1)
-  // Normalise to 0..100 for the bar render.
   return values.map((v) => Math.round((v / max) * 100))
+})
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleDateString('en-NG', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return iso
+  }
+}
+
+const nextPayout = computed(() => {
+  if (upcomingQuery.isLoading.value) return { amount: '…', label: '' }
+  const data = upcomingQuery.data.value
+  if (!data) return { amount: '—', label: 'No upcoming payout' }
+  const naira = toNaira(data.netKobo ?? data.net ?? data.amountKobo ?? data.amount)
+  if (naira <= 0) return { amount: '—', label: 'Earnings still accruing' }
+  return {
+    amount: formatNaira(naira),
+    label: formatDate(data.scheduledFor || data.payoutDate || data.date),
+  }
+})
+
+const screenHealth = computed(() => {
+  const raw = screensQuery.data.value
+  const list = !raw
+    ? []
+    : Array.isArray(raw)
+      ? raw
+      : raw.data || raw.items || raw.screens || []
+  if (screensQuery.isLoading.value) {
+    return { headline: '…', detail: '', iconClass: 'text-neutral-400' }
+  }
+  if (!list.length) {
+    return { headline: '—', detail: 'No screen assigned yet.', iconClass: 'text-neutral-400' }
+  }
+  const offline = list.filter((s) => s.status === 'offline').length
+  const degraded = list.filter((s) => s.status === 'degraded').length
+  const total = list.length
+  const healthy = total - offline - degraded
+  const pct = Math.round((healthy / total) * 100)
+  if (offline > 0) {
+    return {
+      headline: `${pct}%`,
+      detail: `${offline} screen${offline === 1 ? '' : 's'} offline`,
+      iconClass: 'text-rose-500',
+    }
+  }
+  if (degraded > 0) {
+    return {
+      headline: `${pct}%`,
+      detail: `${degraded} screen${degraded === 1 ? '' : 's'} degraded`,
+      iconClass: 'text-gold-500',
+    }
+  }
+  return {
+    headline: '100%',
+    detail: total > 1 ? `All ${total} screens online` : 'All systems normal',
+    iconClass: 'text-moss-500',
+  }
+})
+
+const lifetime = computed(() => {
+  const summary = summaryQuery.data.value || {}
+  const totalNaira = toNaira(
+    summary.lifetimeKobo ??
+      summary.totalGrossKobo ??
+      summary.totalGross ??
+      summary.alltime?.grossKobo ??
+      summary.alltime?.amount,
+  )
+  const totalPlays =
+    summary.lifetimePlays ??
+    summary.totalPlays ??
+    summary.alltime?.plays ??
+    0
+  if (totalNaira <= 0 && !totalPlays) {
+    return {
+      headline: 'Just getting started',
+      detail: 'Earnings and play counts appear here once your screen records its first plays.',
+    }
+  }
+  const parts = []
+  if (totalNaira > 0) parts.push(`${formatNaira(totalNaira)} earned`)
+  if (totalPlays > 0) parts.push(`${totalPlays.toLocaleString()} plays`)
+  return {
+    headline: parts.join(' · ') || 'Lifetime',
+    detail: 'Across the lifetime of your screen on the mìmú network.',
+  }
 })
 </script>

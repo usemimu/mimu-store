@@ -86,6 +86,7 @@ import { useRouter, useRoute } from 'vue-router'
 import Logo from '../components/Logo.vue'
 import { PhWhatsappLogo } from '@phosphor-icons/vue'
 import { useAuthStore } from '../stores/auth'
+import { useProfileStore } from '../stores/profile'
 import { useToastStore } from '../stores/toast'
 
 const props = defineProps({
@@ -120,8 +121,22 @@ async function onSubmit() {
       phoneOrEmail: phoneOrEmail.value.trim(),
       password: password.value,
     })
-    const next = (route.query.redirect && String(route.query.redirect)) || '/dashboard'
-    router.replace(next)
+    // Probe completion-status before deciding where to land. If the host
+    // signed up earlier and bailed mid-onboarding, drop them at the next
+    // unfinished step — not the dashboard, where the cards would render
+    // empty and confuse them. Failures here fall back to the dashboard
+    // (the route guard re-checks anyway).
+    const profile = useProfileStore()
+    let nextPath = (route.query.redirect && String(route.query.redirect)) || '/dashboard'
+    try {
+      await profile.load(true)
+      if (profile.completion && profile.completion.isComplete === false) {
+        nextPath = '/onboarding/profile'
+      }
+    } catch {
+      /* fall back to nextPath */
+    }
+    router.replace(nextPath)
   } catch (err) {
     toast.error(err?.message || 'Sign in failed.')
   } finally {

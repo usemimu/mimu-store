@@ -159,7 +159,11 @@ async function onClaim() {
   }
   busy.value = true
   try {
-    await auth.claimInvite({ token: inviteToken.value, phone: phone.value })
+    await auth.claimInvite({
+      inviteToken: inviteToken.value,
+      phone: phone.value,
+      email: email.value.trim() || undefined,
+    })
     toast.success('Verification code sent.')
     step.value = 'otp'
   } catch (err) {
@@ -172,8 +176,12 @@ async function onClaim() {
 async function onVerify() {
   busy.value = true
   try {
-    await auth.verifyOtp({ phone: phone.value, code: code.value })
-    router.replace('/dashboard')
+    const session = await auth.verifyOtp({ phone: phone.value, code: code.value })
+    // Fresh hosts (post-claim-invite) land here with an unset password +
+    // an incomplete profile. Walk them through the onboarding wizard
+    // rather than dropping them on a half-empty dashboard.
+    const isNew = session?.user?.isNewUser ?? auth.user?.isNewUser ?? true
+    router.replace(isNew ? '/onboarding/password' : '/dashboard')
   } catch (err) {
     toast.error(err?.message || 'Invalid or expired code.')
   } finally {

@@ -30,11 +30,15 @@ const queryClient = new QueryClient({
 })
 app.use(VueQueryPlugin, { queryClient })
 
-// Hydrate the auth store from persisted tokens before the router runs its
-// guard, then register the 401-fallback so the http layer can sign the user
-// out without importing the store (avoids a circular dep).
+// Hydrate the auth store before the router runs its guards, then register
+// the 401-fallback so the http layer can sign the user out without
+// importing the store (avoids a circular dep).
+//
+// `bootstrap()` is now async because it probes `/profile` to validate the
+// stored token. We mount the app immediately (the splash view shows while
+// it resolves), and the auth store reactively flips `isAuthenticated` to
+// false if the probe rejects — at which point the route guard kicks in.
 const auth = useAuthStore()
-auth.bootstrap()
 setUnauthenticatedHandler(() => {
   auth.forceSignOut()
   if (router.currentRoute.value.meta.requiresAuth) {
@@ -44,3 +48,6 @@ setUnauthenticatedHandler(() => {
 
 app.use(router)
 app.mount('#app')
+
+// Fire-and-forget; SplashView watches the store and routes when it settles.
+auth.bootstrap()

@@ -1,4 +1,28 @@
-import { http } from '../lib/http'
+import { z } from 'zod'
+import { http, validate } from '../lib/http'
+
+// Mirrors the OpenAPI host-profile DTOs. Every field is optional on the
+// backend's `UpdateHostProfileDto`, but we still validate so a typo here
+// turns into a useful client-side error rather than a silent server-side
+// no-op.
+const UpdateHostProfileDto = z
+  .object({
+    businessName: z.string().min(2).max(200).optional(),
+    businessCategory: z.string().optional(),
+    lga: z.string().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'At least one field is required',
+  })
+
+const AddBankAccountDto = z.object({
+  bankCode: z.string().min(1),
+  accountNumber: z.string().min(10).max(10),
+})
+
+const ConfirmBankAccountDto = z.object({
+  confirmed: z.boolean(),
+})
 
 export const profileApi = {
   async getProfile() {
@@ -7,7 +31,8 @@ export const profileApi = {
   },
 
   async updateProfile(patch) {
-    const { data } = await http.patch('/profile', patch)
+    const body = validate(UpdateHostProfileDto, patch, 'UpdateHostProfileDto')
+    const { data } = await http.patch('/profile', body)
     return data
   },
 
@@ -29,18 +54,19 @@ export const profileApi = {
    *   2. POST `/profile/bank-account/confirm` with `{ confirmed: true }` once
    *      the user has eyeballed the name.
    */
-  async addBankAccount({ bankCode, accountNumber }) {
-    const { data } = await http.post('/profile/bank-account', {
-      bankCode,
-      accountNumber,
-    })
+  async addBankAccount(input) {
+    const body = validate(AddBankAccountDto, input, 'AddBankAccountDto')
+    const { data } = await http.post('/profile/bank-account', body)
     return data
   },
 
   async confirmBankAccount(confirmed) {
-    const { data } = await http.post('/profile/bank-account/confirm', {
-      confirmed,
-    })
+    const body = validate(
+      ConfirmBankAccountDto,
+      { confirmed },
+      'ConfirmBankAccountDto',
+    )
+    const { data } = await http.post('/profile/bank-account/confirm', body)
     return data
   },
 

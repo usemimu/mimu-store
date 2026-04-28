@@ -11,8 +11,11 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
+        // `name` shows on the install prompt + splash; `short_name` is
+        // what appears under the icon on the homescreen — keep the brand,
+        // not the audience label.
         name: 'mìmú for Hosts',
-        short_name: 'Store',
+        short_name: 'mìmú',
         description: 'Track your mìmú screen earnings, check status, and get paid.',
         theme_color: '#B55430',
         background_color: '#F7F5F2',
@@ -21,6 +24,8 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
+          // Standard ("any") for splash, install dialog, and as fallback
+          // on platforms that don't support maskable icons.
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
@@ -32,6 +37,15 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
+          },
+          // Maskable for Android's adaptive-icon system. We declare the
+          // 512 maskable at both 192 and 512 entries so smaller-density
+          // devices don't scale a 512 down badly.
+          {
+            src: 'pwa-maskable-512x512.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: 'pwa-maskable-512x512.png',
@@ -46,6 +60,12 @@ export default defineConfig({
         type: 'module'
       },
       workbox: {
+        // Tell the new SW to take over open tabs immediately and clean up
+        // old precache entries, so a deploy doesn't pin stale icons or
+        // manifest behind an outdated SW until every tab closes.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {

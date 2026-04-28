@@ -122,6 +122,39 @@ export class ApiError extends Error {
 }
 
 /**
+ * Boundary validation for request bodies + typed responses.
+ *
+ * The backend's OpenAPI exposes typed DTOs for every request body; we
+ * parse the payload against the matching zod schema before sending so
+ * field-name drift (e.g. the `token` vs `inviteToken` bug we shipped
+ * last week) fails loudly at the call site, not as an opaque server-side
+ * 400. Throws a descriptive error on failure; caller catches and surfaces
+ * a friendly toast.
+ *
+ * For responses with typed DTOs (host auth, advertiser auth) we also
+ * `validate` so the UI gets back a clean shape. For prose-documented
+ * responses (everything else) we pass the raw payload through and rely
+ * on the accessor-with-fallback pattern in the views — inventing a
+ * schema the backend hasn't published would just be lying to ourselves.
+ */
+export function validate(schema, data, label = 'value') {
+  const r = schema.safeParse(data)
+  if (r.success) return r.data
+  if (import.meta.env.DEV) {
+    console.error(`[validate] ${label} failed`, r.error.format(), data)
+  }
+  // First-issue message is more useful in a toast than the full Zod
+  // object dump; keep the rest in the cause for devs who want it.
+  const first = r.error.issues[0]
+  const where = first?.path?.length ? ` at ${first.path.join('.')}` : ''
+  const err = new Error(
+    `Invalid ${label}${where}: ${first?.message ?? 'shape mismatch'}`,
+  )
+  err.zod = r.error
+  throw err
+}
+
+/**
  * The backend has two flavours of validation envelope:
  *   1. NestJS + Zod pipe → `errors: [{ code, path: [...], message }]`
  *   2. NestJS class-validator → `errors: { field: [messages] }`

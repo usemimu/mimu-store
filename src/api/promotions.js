@@ -1,5 +1,24 @@
 import axios from 'axios'
-import { http } from '../lib/http'
+import { z } from 'zod'
+import { http, validate } from '../lib/http'
+
+// Mirrors `PromotionUploadIntentDto`. The `contentType` enum is exact —
+// the backend rejects anything else.
+const PromotionUploadIntentDto = z.object({
+  fileName: z.string().min(1).max(255),
+  fileSize: z.number().int().positive(),
+  contentType: z.enum(['video/mp4', 'image/jpeg', 'image/png']),
+  screenId: z.string().uuid(),
+})
+
+// Mirrors `CreatePromotionDto`. `description` is optional; everything else
+// is required.
+const CreatePromotionDto = z.object({
+  promotionId: z.string().uuid(),
+  name: z.string().min(2).max(255),
+  description: z.string().max(500).optional(),
+  screenId: z.string().uuid(),
+})
 
 /**
  * Host promotions — the host's own creative content for their screens.
@@ -12,13 +31,13 @@ import { http } from '../lib/http'
  *   4. Once approved, POST `/promotions/{id}/activate` to add to rotation.
  */
 export const promotionsApi = {
-  async uploadIntent({ fileName, fileSize, contentType, screenId }) {
-    const { data } = await http.post('/promotions/upload-intent', {
-      fileName,
-      fileSize,
-      contentType,
-      screenId,
-    })
+  async uploadIntent(input) {
+    const body = validate(
+      PromotionUploadIntentDto,
+      input,
+      'PromotionUploadIntentDto',
+    )
+    const { data } = await http.post('/promotions/upload-intent', body)
     return data
   },
 
@@ -41,13 +60,9 @@ export const promotionsApi = {
     })
   },
 
-  async create({ promotionId, name, description, screenId }) {
-    const { data } = await http.post('/promotions', {
-      promotionId,
-      name,
-      ...(description ? { description } : {}),
-      screenId,
-    })
+  async create(input) {
+    const body = validate(CreatePromotionDto, input, 'CreatePromotionDto')
+    const { data } = await http.post('/promotions', body)
     return data
   },
 

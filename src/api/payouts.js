@@ -1,4 +1,16 @@
-import { http } from '../lib/http'
+import { z } from 'zod'
+import { http, validate } from '../lib/http'
+
+// Backend constraint: reason 10–500 chars (matches `EarlyPayoutRequestDto`).
+const EarlyPayoutRequestDto = z.object({
+  reason: z.string().min(10).max(500),
+})
+
+// `RequestReceiptDto` — email is optional; if omitted server uses the
+// account's primary email.
+const RequestReceiptDto = z.object({
+  email: z.string().email().optional(),
+})
 
 export const payoutsApi = {
   /** Currently-pending payout details + breakdown (gross, WHT, fees, net). */
@@ -16,18 +28,25 @@ export const payoutsApi = {
   },
   /** Email a PDF receipt; body { email? } overrides the default address. */
   async requestReceipt(id, email) {
+    const body = validate(
+      RequestReceiptDto,
+      email ? { email } : {},
+      'RequestReceiptDto',
+    )
     const { data } = await http.post(
       `/payouts/${id}/request-receipt`,
-      email ? { email } : {},
+      body,
     )
     return data
   },
   /**
-   * Early payout request — backend enforces a ₦20,000 minimum (returns 402
-   * if balance is below threshold). Body requires `reason` 10–500 chars.
+   * Early payout request. Backend enforces a ₦20,000 minimum (returns 402
+   * if balance is below threshold) and rejects anything outside the 10–500
+   * char reason range with a 400; we surface that early via the DTO.
    */
   async earlyRequest(reason) {
-    const { data } = await http.post('/payouts/early-request', { reason })
+    const body = validate(EarlyPayoutRequestDto, { reason }, 'EarlyPayoutRequestDto')
+    const { data } = await http.post('/payouts/early-request', body)
     return data
   },
 }

@@ -1,13 +1,28 @@
-import { http } from '../lib/http'
+import { z } from 'zod'
+import { http, validate } from '../lib/http'
+
+// Mirrors `CreateIssueDto`. Category enum + length bounds are pulled
+// straight from the OpenAPI spec.
+const CreateIssueDto = z.object({
+  category: z.enum([
+    'power',
+    'network',
+    'screen_damage',
+    'ads_not_playing',
+    'payment_issue',
+    'app_issue',
+    'content_issue',
+    'other',
+  ]),
+  subject: z.string().min(5).max(255),
+  description: z.string().min(10).max(2000),
+  attachments: z.array(z.string().url()).max(5).optional(),
+})
 
 export const supportApi = {
-  async createIssue({ category, subject, description, attachments }) {
-    const { data } = await http.post('/issues', {
-      category,
-      subject,
-      description,
-      ...(attachments?.length ? { attachments } : {}),
-    })
+  async createIssue(input) {
+    const body = validate(CreateIssueDto, input, 'CreateIssueDto')
+    const { data } = await http.post('/issues', body)
     return data
   },
   async listIssues(params = {}) {
