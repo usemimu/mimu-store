@@ -24,6 +24,7 @@ const showNavigation = computed(() => {
     <div class="flex">
       <!-- Sidebar Navigation (Desktop) -->
       <Sidebar v-if="showNavigation" :dark="dark" :active="route.name" class="hidden lg:block" />
+      
 
       <!-- Main Content -->
       <main class="flex-1 min-h-screen" :class="showNavigation ? 'lg:ml-64' : ''">
