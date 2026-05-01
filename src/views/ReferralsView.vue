@@ -8,7 +8,7 @@
             Referrals
           </h1>
           <p class="mt-2 text-sm lg:text-lg" :style="{ color: fg2 }">
-            Refer a business to host a mìmú screen. Earn ₦20,000 when they go live.
+            Refer a business to host a Mimuads screen. Earn ₦20,000 when they go live.
           </p>
         </div>
         <span

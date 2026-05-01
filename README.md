@@ -1,12 +1,12 @@
-# mìmú for Hosts - Vue.js PWA
+# Mimuads for Hosts - Vue.js PWA
 
-A Progressive Web App built with Vue.js 3 for mìmú screen hosts to track earnings, check screen status, and manage their accounts.
+A Progressive Web App built with Vue.js 3 for Mimuads screen hosts to track earnings, check screen status, and manage their accounts.
 
 ##  Features
 
 - **Progressive Web App (PWA)** - Install on mobile devices and use offline
 - **Component-based architecture** - Reusable Vue components throughout
-- **Tailwind CSS** - Custom design system with mìmú brand colors
+- **Tailwind CSS** - Custom design system with Mimuads brand colors
 - **Vue Router** - Client-side routing with navigation guards
 - **Phosphor Icons** - Beautiful icon system
 - **Dark mode support** - Automatic theme detection with manual override
@@ -56,7 +56,7 @@ npm run preview
 ```
 
 
-The app uses a custom design system based on the mìmú brand:
+The app uses a custom design system based on the Mimuads brand:
 
 - **Colors**: Clay (primary), Moss (success), Gold (accent), Neutral (grays)
 - **Typography**: Cormorant (display), Plus Jakarta Sans (body)
@@ -115,4 +115,4 @@ The app is configured as a PWA with:
 
 ##  License
 
-Copyright © 2026 mìmú
+Copyright © 2026 Mimuads

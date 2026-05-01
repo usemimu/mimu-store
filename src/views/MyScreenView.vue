@@ -17,37 +17,166 @@
         {{ screensQuery.error.value?.message || 'Could not load your screens.' }}
       </div>
 
-      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- Status card -->
-        <div class="rounded-2xl p-6 lg:p-8" :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }">
-          <div class="flex justify-between items-start mb-6">
-            <div>
-              <div class="text-base lg:text-lg font-bold mb-1" :style="{ color: fg }">{{ screen.name }}</div>
-              <div class="text-sm" :style="{ color: fg3 }">{{ screen.address }}</div>
-            </div>
-            <div
-              class="flex items-center gap-2 rounded-full py-2 px-3"
-              :style="{ background: statusBg(screen.status) }"
-            >
-              <div class="w-2 h-2 rounded-full" :class="statusDot(screen.status)"></div>
-              <span class="text-xs font-bold" :class="statusText(screen.status)">
-                {{ screen.statusLabel }}
-              </span>
+      <!-- Empty state — host has no screen assigned yet (ops hasn't
+           assigned one, hardware not yet installed, or the install was
+           done after sign-up). Skip the rest of the page and show a
+           single explanation card with a way to reach ops directly. -->
+      <div
+        v-else-if="!hasScreen"
+        class="rounded-2xl p-8 lg:p-10 mb-8 text-center"
+        :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+      >
+        <div
+          class="mx-auto mb-5 w-16 h-16 rounded-full flex items-center justify-center"
+          :style="{ background: dark ? 'rgba(181,84,48,0.15)' : '#FBF4F0' }"
+        >
+          <PhMonitor :size="32" class="text-clay-500" weight="bold" />
+        </div>
+        <h2 class="text-xl lg:text-2xl font-display font-light mb-3" :style="{ color: fg }">
+          Your screen is being prepared
+        </h2>
+        <p class="text-sm lg:text-base mb-6 max-w-md mx-auto" :style="{ color: fg2 }">
+          Our team is installing your screen at the venue. Once it's online,
+          this page will show its status, plays, and earnings — usually within
+          a few hours of installation.
+        </p>
+
+        <div
+          class="rounded-xl p-4 mb-6 max-w-md mx-auto text-left"
+          :style="{
+            background: dark ? 'rgba(255,255,255,0.04)' : '#F7F5F2',
+            border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#E8E0D4'}`,
+          }"
+        >
+          <div class="text-[11px] uppercase tracking-wider font-semibold mb-2" :style="{ color: fg3 }">
+            On file
+          </div>
+          <div class="text-sm space-y-1" :style="{ color: fg }">
+            <div><strong>{{ profile.profile?.businessName || '—' }}</strong></div>
+            <div :style="{ color: fg2 }">
+              {{ profile.profile?.businessAddress || profile.profile?.lga || '—' }}
             </div>
           </div>
-          <div class="grid grid-cols-3 gap-4">
-            <div v-for="(item, i) in screenInfo" :key="i">
-              <div class="text-xs uppercase tracking-wider font-semibold mb-1" :style="{ color: fg3 }">
-                {{ item.label }}
+          <p class="text-xs mt-3" :style="{ color: fg3 }">
+            If anything's wrong, update it from
+            <router-link to="/account/edit-business" class="text-clay-500 font-semibold no-underline">
+              Account → Edit business details
+            </router-link>.
+          </p>
+        </div>
+
+        <button
+          class="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#22c55e] transition-colors border-none cursor-pointer"
+          @click="onWhatsapp"
+        >
+          <PhWhatsappLogo :size="20" weight="bold" />
+          <span>Talk to our install team</span>
+        </button>
+      </div>
+
+      <div v-else>
+        <!-- Per-screen cards. One card per screen with status pill +
+             plays/earnings/last-seen KPIs. Layout grows naturally:
+             one screen renders full width, two+ flow into a 2-col
+             grid on desktop. -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div
+            v-for="s in screensList"
+            :key="s.id"
+            class="rounded-2xl p-6 lg:p-8"
+            :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+          >
+            <div class="flex justify-between items-start mb-6 gap-3">
+              <div class="min-w-0">
+                <div class="text-base lg:text-lg font-bold mb-1 truncate" :style="{ color: fg }">
+                  {{ s.name }}
+                </div>
+                <div class="text-sm truncate" :style="{ color: fg3 }">{{ s.address }}</div>
               </div>
-              <div class="text-sm font-semibold" :style="{ color: fg }">{{ item.value }}</div>
+              <div
+                class="flex items-center gap-2 rounded-full py-2 px-3 shrink-0"
+                :style="{ background: statusBg(s.status) }"
+              >
+                <div class="w-2 h-2 rounded-full" :class="statusDot(s.status)"></div>
+                <span class="text-xs font-bold" :class="statusText(s.status)">
+                  {{ s.statusLabel }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Earnings + plays grid. Today / This week. The card's
+                 always-visible default; deeper history lives on
+                 /earnings. -->
+            <div class="grid grid-cols-2 gap-4 mb-5">
+              <div
+                class="rounded-xl p-4"
+                :style="{
+                  background: dark ? 'rgba(181,84,48,0.08)' : '#FBF4F0',
+                  border: `1px solid ${dark ? 'rgba(181,84,48,0.2)' : '#E8C5AC'}`,
+                }"
+              >
+                <div class="text-[10px] uppercase tracking-wider font-bold mb-1 text-clay-500">
+                  Today
+                </div>
+                <div class="font-display text-2xl font-light" :style="{ color: fg }">
+                  {{ formatNaira(s.earnedTodayNaira) }}
+                </div>
+                <div class="text-xs" :style="{ color: fg3 }">
+                  {{ s.playsToday.toLocaleString() }} plays
+                </div>
+              </div>
+              <div
+                class="rounded-xl p-4"
+                :style="{
+                  background: dark ? 'rgba(255,255,255,0.04)' : '#F7F5F2',
+                  border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#E8E0D4'}`,
+                }"
+              >
+                <div class="text-[10px] uppercase tracking-wider font-bold mb-1" :style="{ color: fg3 }">
+                  This week
+                </div>
+                <div class="font-display text-2xl font-light" :style="{ color: fg }">
+                  {{ formatNaira(s.earnedThisWeekNaira) }}
+                </div>
+                <div class="text-xs" :style="{ color: fg3 }">
+                  {{ s.playsThisWeek.toLocaleString() }} plays
+                </div>
+              </div>
+            </div>
+
+            <!-- Status meta — last seen / device / brightness -->
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t" :style="{ borderColor: divLine }">
+              <div>
+                <div class="text-[10px] uppercase tracking-wider font-semibold mb-1" :style="{ color: fg3 }">
+                  Last seen
+                </div>
+                <div class="text-sm font-semibold" :style="{ color: fg }">
+                  {{ s.lastSeenAt ? relTime(s.lastSeenAt) : '—' }}
+                </div>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase tracking-wider font-semibold mb-1" :style="{ color: fg3 }">
+                  Screen
+                </div>
+                <div class="text-sm font-semibold" :style="{ color: fg }">{{ s.deviceModel }}</div>
+              </div>
+              <div>
+                <div class="text-[10px] uppercase tracking-wider font-semibold mb-1" :style="{ color: fg3 }">
+                  This month
+                </div>
+                <div class="text-sm font-semibold" :style="{ color: fg }">
+                  {{ formatNaira(s.earnedThisMonthNaira) }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Free slot promo -->
+        <!-- Free slot promo. Promotions are host-level (uploaded once,
+             rotated across all of this host's screens) so this card
+             stays out of the per-screen loop. -->
         <div
-          class="rounded-2xl p-6 lg:p-8"
+          class="rounded-2xl p-6 lg:p-8 mb-8"
           :style="{
             background: dark ? 'rgba(181,84,48,0.1)' : '#FBF4F0',
             border: `1px solid ${dark ? 'rgba(181,84,48,0.25)' : '#E8C5AC'}`
@@ -184,12 +313,14 @@ import {
   PhSpeakerSlash,
   PhCamera,
   PhDotsThree,
-  PhCaretRight
+  PhCaretRight,
+  PhWhatsappLogo,
 } from '@phosphor-icons/vue'
 import { screensApi } from '../api/screens'
 import { promotionsApi } from '../api/promotions'
 import { supportApi } from '../api/support'
 import { useToastStore } from '../stores/toast'
+import { useProfileStore } from '../stores/profile'
 import { useOptimisticPatchMutation } from '../composables/useOptimisticRowMutation'
 
 const props = defineProps({
@@ -213,6 +344,61 @@ const screensQuery = useQuery({
   queryKey: ['host', 'screens'],
   queryFn: () => screensApi.list(),
 })
+
+// `hasScreen` decides whether the page renders the rich status / free
+// slot / promotions layout, or the empty-state explainer card. We
+// only consider screens with an `id` real — the back-end shape can
+// be `[]`, `{ screens: [] }`, or any of the legacy fallbacks. The
+// `defaultScreen` placeholder used by the rich layout when present.
+const profile = useProfileStore()
+
+function rawList() {
+  const raw = screensQuery.data.value
+  if (!raw) return []
+  return Array.isArray(raw) ? raw : raw.data || raw.items || raw.screens || []
+}
+
+const hasScreen = computed(() => {
+  const list = rawList()
+  return list.length > 0 && Boolean(list[0]?.id)
+})
+
+// Normalised array used by the per-screen card loop. Every host who
+// has any screens at all renders one card per screen with its own
+// status pill + plays + earnings KPIs. Today this is usually 1
+// screen; the layout grows naturally to a 2-col grid for 2+.
+const screensList = computed(() =>
+  rawList()
+    .filter((s) => s?.id)
+    .map((s) => {
+      const status = (s.status || 'unknown').toLowerCase()
+      return {
+        id: s.id,
+        name: s.name || s.venueName || 'Your screen',
+        address: s.address || s.venueAddress || s.lga || '—',
+        status,
+        statusLabel:
+          status === 'online' || status === 'active' ? 'Online' :
+          status === 'offline' ? 'Offline' :
+          status,
+        deviceModel: s.deviceModel || '—',
+        lastSeenAt: s.lastSeenAt,
+        playsToday: Number(s.playsToday ?? 0),
+        playsThisWeek: Number(s.playsThisWeek ?? 0),
+        playsThisMonth: Number(s.playsThisMonth ?? 0),
+        earnedTodayNaira: Number(s.earnedTodayNaira ?? 0),
+        earnedThisWeekNaira: Number(s.earnedThisWeekNaira ?? 0),
+        earnedThisMonthNaira: Number(s.earnedThisMonthNaira ?? 0),
+        earnedAllTimeNaira: Number(s.earnedAllTimeNaira ?? 0),
+      }
+    }),
+)
+
+function formatNaira(value) {
+  const n = Number(value ?? 0)
+  if (!Number.isFinite(n)) return '₦0'
+  return `₦${Math.round(n).toLocaleString('en-NG')}`
+}
 
 const screen = computed(() => {
   const raw = screensQuery.data.value

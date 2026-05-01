@@ -1,9 +1,23 @@
 <template>
-  <form
-    class="rounded-2xl p-6"
-    :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
-    @submit.prevent="onSubmit"
-  >
+  <div class="min-h-screen px-4 py-8" :class="dark ? 'bg-neutral-900' : 'bg-neutral-50'">
+    <div class="max-w-md mx-auto">
+      <div class="text-center mb-8">
+        <div class="flex justify-center mb-4">
+          <Logo :dark="dark" :size="44" />
+        </div>
+        <div
+          class="text-[11px] font-semibold tracking-[0.18em] uppercase"
+          :style="{ color: fg3 }"
+        >
+          Setting up your host account
+        </div>
+      </div>
+
+      <form
+        class="rounded-2xl p-6"
+        :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+        @submit.prevent="onSubmit"
+      >
     <h1 class="font-display text-2xl font-light tracking-tight mb-2" :style="{ color: fg }">
       Set a password
     </h1>
@@ -51,7 +65,9 @@
     >
       Skip for now — I'll use OTP to sign in
     </button>
-  </form>
+      </form>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -60,6 +76,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import Field from '../../components/forms/EditField.vue'
+import Logo from '../../components/Logo.vue'
 
 const props = defineProps({
   dark: { type: Boolean, default: false },
@@ -79,6 +96,7 @@ const canSubmit = computed(
 
 const fg = computed(() => (props.dark ? '#F2EFE9' : '#0E0D0B'))
 const fg2 = computed(() => (props.dark ? '#A89F94' : '#5E574F'))
+const fg3 = computed(() => (props.dark ? '#5E574F' : '#A89F94'))
 const cardBg = computed(() => (props.dark ? '#1A1815' : '#fff'))
 const cardBorder = computed(() => (props.dark ? '1px solid rgba(255,255,255,0.08)' : 'none'))
 const cardShadow = computed(() => (props.dark ? 'none' : '0 1px 3px rgba(14,13,11,0.08)'))
@@ -103,7 +121,7 @@ async function onSubmit() {
   try {
     await auth.setPassword(password.value)
     toast.success('Password saved.')
-    router.replace('/onboarding/profile')
+    router.replace('/dashboard')
   } catch (err) {
     toast.error(err?.message || 'Could not save password.')
   } finally {
@@ -114,6 +132,6 @@ async function onSubmit() {
 function skip() {
   // Skipping is fine — set-password is a convenience; OTP sign-in still
   // works. The user can set one later from Account → Change Password.
-  router.replace('/onboarding/profile')
+  router.replace('/dashboard')
 }
 </script>

@@ -7,8 +7,10 @@ import { http, validate } from '../lib/http'
 // no-op.
 const UpdateHostProfileDto = z
   .object({
+    name: z.string().min(1).max(200).optional(),
     businessName: z.string().min(2).max(200).optional(),
     businessCategory: z.string().optional(),
+    businessAddress: z.string().max(500).optional().nullable(),
     lga: z.string().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
@@ -72,6 +74,34 @@ export const profileApi = {
 
   async whtExplanation() {
     const { data } = await http.get('/info/wht-explanation')
+    return data
+  },
+
+  // ── Multi-bank API (up to 3 verified accounts) ────────────────────
+  async listBankAccounts() {
+    const { data } = await http.get('/profile/bank-accounts')
+    return data
+  },
+  async addBankAccountV2(input) {
+    const body = validate(AddBankAccountDto, input, 'AddBankAccountDto')
+    const { data } = await http.post('/profile/bank-accounts', body)
+    return data
+  },
+  async confirmBankAccountV2(id, confirmed) {
+    const body = validate(
+      ConfirmBankAccountDto,
+      { confirmed },
+      'ConfirmBankAccountDto',
+    )
+    const { data } = await http.post(`/profile/bank-accounts/${id}/confirm`, body)
+    return data
+  },
+  async setPrimaryBankAccount(id) {
+    const { data } = await http.post(`/profile/bank-accounts/${id}/primary`)
+    return data
+  },
+  async removeBankAccount(id) {
+    const { data } = await http.delete(`/profile/bank-accounts/${id}`)
     return data
   },
 }

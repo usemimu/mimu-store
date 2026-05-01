@@ -117,7 +117,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import Logo from '../components/Logo.vue'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
@@ -127,11 +127,18 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const toast = useToastStore()
 
 const step = ref('claim')
-const inviteToken = ref('')
+// Prefill the token if the host arrived via a tracked invite link
+// (`/onboard?invite=...`). The query value comes from the WhatsApp /
+// SMS / email blast — pre-filling means the host doesn't have to copy
+// + paste a 43-char token from a deep-link they just clicked.
+const initialToken =
+  typeof route.query.invite === 'string' ? route.query.invite : ''
+const inviteToken = ref(initialToken)
 const phone = ref('')
 const email = ref('')
 const code = ref('')

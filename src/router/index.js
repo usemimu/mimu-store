@@ -11,20 +11,27 @@ import AccountView from '../views/AccountView.vue'
 import EditBusinessView from '../views/EditBusinessView.vue'
 import ChangePasswordView from '../views/ChangePasswordView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
-import OnboardingShell from '../views/onboarding/OnboardingShell.vue'
 import SetPasswordStep from '../views/onboarding/SetPasswordStep.vue'
-import ProfileStep from '../views/onboarding/ProfileStep.vue'
-import BankStep from '../views/onboarding/BankStep.vue'
-import DoneStep from '../views/onboarding/DoneStep.vue'
 import { useAuthStore } from '../stores/auth'
-import { useProfileStore } from '../stores/profile'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'splash', component: SplashView },
     { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
-    { path: '/signup', name: 'signup', component: SignupView, meta: { guestOnly: true } },
+    // The backend sends invite links as `${HOST_APP_URL}/onboard?invite=...`
+    // (see host-invites.service.ts). `/onboard` is aliased to `/signup`
+    // so the WhatsApp / SMS / email link lands on the claim form
+    // without a 404, and SignupView's `?invite=` query prefill takes
+    // it from there. Alias rather than redirect so the URL the host
+    // sees matches what they clicked — no surprise jump to /signup.
+    {
+      path: '/signup',
+      alias: '/onboard',
+      name: 'signup',
+      component: SignupView,
+      meta: { guestOnly: true },
+    },
     { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guestOnly: true } },
     { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
     { path: '/earnings', name: 'earnings', component: EarningsView, meta: { requiresAuth: true } },
@@ -34,22 +41,21 @@ const router = createRouter({
     { path: '/account/edit-business', name: 'edit-business', component: EditBusinessView, meta: { requiresAuth: true } },
     { path: '/account/change-password', name: 'change-password', component: ChangePasswordView, meta: { requiresAuth: true } },
     { path: '/account/notifications', name: 'notifications', component: NotificationsView, meta: { requiresAuth: true } },
-    // Onboarding wizard. Each child is its own URL so back-button +
-    // resume-from-link work. `meta.onboarding` is read by the route
-    // guard so we don't bounce these to the dashboard when the profile
-    // is incomplete.
+    // Onboarding is a single step: set a password. After that the
+    // host lands on the dashboard. Business details / bank details
+    // are not part of the wizard — admins pre-fill business info at
+    // invite time, and the host can edit it via Account → Edit
+    // business / bank flows whenever they're ready.
     {
-      path: '/onboarding',
-      component: OnboardingShell,
+      path: '/onboarding/password',
+      name: 'onboarding-password',
+      component: SetPasswordStep,
       meta: { requiresAuth: true, onboarding: true },
-      children: [
-        { path: '', redirect: '/onboarding/password' },
-        { path: 'password', name: 'onboarding-password', component: SetPasswordStep },
-        { path: 'profile', name: 'onboarding-profile', component: ProfileStep },
-        { path: 'bank', name: 'onboarding-bank', component: BankStep },
-        { path: 'done', name: 'onboarding-done', component: DoneStep },
-      ],
     },
+    // Backwards-compat: any old `/onboarding/...` deep link (from a
+    // previous build's wizard) lands on the password step.
+    { path: '/onboarding', redirect: '/onboarding/password' },
+    { path: '/onboarding/:rest(.*)*', redirect: '/onboarding/password' },
   ],
 })
 
@@ -69,22 +75,9 @@ router.beforeEach((to) => {
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'dashboard' }
   }
-
-  // Onboarding gate. The auth-store bootstrap merges /profile into the
-  // user record but doesn't fetch completion-status — we read that from
-  // the profile store. If the host is signed-in but not yet complete,
-  // park them on the onboarding flow. Onboarding routes bypass this
-  // check (otherwise we'd loop) and so do plain auth pages.
-  if (auth.isAuthenticated && to.meta.requiresAuth && !to.meta.onboarding) {
-    const profile = useProfileStore()
-    // `completion === null` means we haven't probed yet; lean
-    // permissive (let the navigation through) and the dashboard will
-    // render its empty states. The Account page kicks off `profile.load()`
-    // and on next nav we'll know.
-    if (profile.completion && profile.completion.isComplete === false) {
-      return { name: 'onboarding-profile' }
-    }
-  }
+  // No completion-status gate. Hosts go straight to the dashboard
+  // after sign-in; if they want to fill in bank or fix business
+  // details they do it from Account.
 })
 
 export default router

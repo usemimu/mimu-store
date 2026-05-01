@@ -35,8 +35,8 @@ const {
         </p>
         <p class="text-xs mt-0.5" :class="dark ? 'text-neutral-400' : 'text-neutral-500'">
           {{ needRefresh
-            ? 'A new version of mìmú Hosts is ready.'
-            : 'mìmú Hosts is now installed on this device.' }}
+            ? 'A new version of Mimuads Hosts is ready.'
+            : 'Mimuads Hosts is now installed on this device.' }}
         </p>
 
         <div v-if="needRefresh" class="mt-2 flex gap-2">

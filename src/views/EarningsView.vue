@@ -11,8 +11,58 @@
         </p>
       </div>
 
+      <!-- Empty state — no lifetime earnings recorded yet. Mirrors the
+           dashboard + screen empty-state pattern so the host doesn't
+           land on a misleading "₦0 earned · No upcoming payout" page. -->
+      <div
+        v-if="!hasEarnings"
+        class="rounded-2xl p-8 lg:p-10 mb-8 text-center"
+        :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+      >
+        <div
+          class="mx-auto mb-5 w-16 h-16 rounded-full flex items-center justify-center"
+          :style="{ background: dark ? 'rgba(181,84,48,0.15)' : '#FBF4F0' }"
+        >
+          <PhCoins :size="32" class="text-clay-500" weight="bold" />
+        </div>
+        <h2 class="text-xl lg:text-2xl font-display font-light mb-3" :style="{ color: fg }">
+          No earnings yet — but here's how it works
+        </h2>
+        <p class="text-sm lg:text-base mb-6 max-w-md mx-auto" :style="{ color: fg2 }">
+          Each ad that plays on your screen credits your account. Payouts
+          run on the 1st of every month, with 5% withholding tax deducted.
+          Minimum balance to trigger a payout is ₦1,000.
+        </p>
+
+        <div
+          class="rounded-xl p-5 mb-6 max-w-md mx-auto text-left"
+          :style="{
+            background: dark ? 'rgba(255,255,255,0.04)' : '#F7F5F2',
+            border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#E8E0D4'}`,
+          }"
+        >
+          <div class="text-[11px] uppercase tracking-wider font-semibold mb-3" :style="{ color: fg3 }">
+            Payout flow
+          </div>
+          <ol class="text-sm space-y-2" :style="{ color: fg }">
+            <li><strong>1.</strong> Ad plays on your screen → revenue is credited.</li>
+            <li><strong>2.</strong> On the 1st of the month, balance is checked.</li>
+            <li><strong>3.</strong> Once over ₦1,000, payout is created and sent to your primary bank account.</li>
+            <li><strong>4.</strong> Net amount (gross − 5% WHT) lands in your bank within 1–2 business days.</li>
+          </ol>
+        </div>
+
+        <router-link
+          to="/account"
+          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold no-underline cursor-pointer"
+          style="background: #B55430; color: #fff;"
+        >
+          Set up your bank account
+        </router-link>
+      </div>
+
       <!-- Summary Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <!-- Total Earned Card -->
         <div
           class="rounded-2xl p-6 lg:p-8"
@@ -99,7 +149,9 @@
         </div>
       </div>
 
-      <!-- WHT notice -->
+      <!-- WHT notice + history — hidden when the empty-state card
+           takes over (the empty card explains WHT inline). -->
+      <template v-if="hasEarnings">
       <div
         class="py-4 px-5 rounded-xl mb-8 flex gap-4 items-start"
         :style="{
@@ -116,7 +168,6 @@
         </div>
       </div>
 
-      <!-- Payout history -->
       <div>
         <h2 class="text-sm lg:text-base font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
           Payout history
@@ -158,6 +209,7 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
   </div>
 </template>
@@ -165,7 +217,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { PhInfo, PhBank } from '@phosphor-icons/vue'
+import { PhInfo, PhBank, PhCoins } from '@phosphor-icons/vue'
 import { earningsApi } from '../api/earnings'
 import { payoutsApi } from '../api/payouts'
 import { useToastStore } from '../stores/toast'
@@ -226,9 +278,32 @@ function formatDate(iso) {
   }
 }
 
-const totalEarned = computed(() => {
+// Treat zero-state as "no earnings yet" — both lifetime paid-out and
+// pending balance must be empty AND there must be no payout history
+// to land on the empty card. Once any of those move past zero, the
+// real summary grid + history take over.
+const hasEarnings = computed(() => {
   const s = summaryQuery.data.value || {}
-  return formatNaira(toNaira(s.totalGrossKobo ?? s.totalGross ?? s.lifetimeKobo ?? s.total))
+  const paidOut = Number(s.lifetimePaidOutNaira ?? 0)
+  const pending = Number(s.earningsBalanceNaira ?? 0)
+  if (paidOut > 0 || pending > 0) return true
+  const list = extractList(historyQuery.data.value)
+  return list.length > 0
+})
+
+const totalEarned = computed(() => {
+  // EarningsSummaryDto exposes lifetime totals as
+  // `lifetimePaidOutKobo` + `lifetimePaidOutNaira`, plus the running
+  // unpaid balance as `earningsBalanceKobo` / `earningsBalanceNaira`.
+  // "Total earned" = paid out + still pending. Older fallbacks
+  // preserved in case the response shape varies.
+  const s = summaryQuery.data.value || {}
+  const paidOut = Number(s.lifetimePaidOutNaira ?? 0)
+  const pending = Number(s.earningsBalanceNaira ?? 0)
+  if (paidOut || pending) return formatNaira(Math.round(paidOut + pending))
+  return formatNaira(
+    toNaira(s.totalGrossKobo ?? s.totalGross ?? s.lifetimeKobo ?? s.total),
+  )
 })
 
 const totalPayoutsCount = computed(() => {

@@ -14,9 +14,9 @@ export default defineConfig({
         // `name` shows on the install prompt + splash; `short_name` is
         // what appears under the icon on the homescreen — keep the brand,
         // not the audience label.
-        name: 'mìmú for Hosts',
-        short_name: 'mìmú',
-        description: 'Track your mìmú screen earnings, check status, and get paid.',
+        name: 'Mimuads for Hosts',
+        short_name: 'Mimuads',
+        description: 'Track your Mimuads screen earnings, check status, and get paid.',
         theme_color: '#B55430',
         background_color: '#F7F5F2',
         display: 'standalone',

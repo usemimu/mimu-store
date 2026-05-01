@@ -47,55 +47,9 @@
             </div>
           </div>
 
-          <!-- Bank account (single, two-step verify-then-confirm flow) -->
-          <BankAccountSetup :dark="dark" />
+          <!-- Bank accounts (up to 3 verified, one primary) -->
+          <BankAccountsList :dark="dark" />
 
-          <!-- Tax Information -->
-          <div
-            class="rounded-2xl p-6 lg:p-8"
-            :style="{
-              background: cardBg,
-              border: cardBorder,
-              boxShadow: cardShadow
-            }"
-          >
-            <h2 class="text-lg lg:text-xl font-bold mb-6" :style="{ color: fg }">
-              Tax Information
-            </h2>
-            <div class="space-y-5">
-              <div>
-                <label class="text-xs lg:text-sm font-semibold mb-2 block" :style="{ color: fg }">
-                  TIN (Tax Identification Number)
-                </label>
-                <input
-                  type="text"
-                  value="12345678-0001"
-                  readonly
-                  class="w-full rounded-xl py-3 px-4 text-sm lg:text-base"
-                  :style="{
-                    background: inputBg,
-                    border: `1.5px solid ${inputBorder}`,
-                    color: fg
-                  }"
-                />
-              </div>
-              <div
-                class="py-4 px-5 rounded-xl flex gap-4 items-start"
-                :style="{
-                  background: dark ? 'rgba(180,136,28,0.1)' : '#FCF7E8',
-                  border: `1px solid ${dark ? 'rgba(180,136,28,0.25)' : '#EDD88A'}`
-                }"
-              >
-                <PhInfo :size="20" class="text-gold-500 flex-shrink-0 mt-1" />
-                <div
-                  class="text-xs lg:text-sm leading-relaxed"
-                  :style="{ color: dark ? '#E0BF50' : '#8D6A15' }"
-                >
-                  We deduct 5% WHT from all payouts as required by FIRS. Keep your TIN updated for tax compliance.
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Sidebar -->
@@ -165,7 +119,7 @@
           <!-- App Version -->
           <div class="text-center py-4">
             <div class="text-xs" :style="{ color: fg3 }">
-              mìmú for Hosts v1.0.0
+              Mimuads for Hosts v1.0.0
             </div>
           </div>
         </div>
@@ -181,7 +135,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
 import { useToastStore } from '../stores/toast'
-import BankAccountSetup from '../components/BankAccountSetup.vue'
+import BankAccountsList from '../components/BankAccountsList.vue'
 
 const auth = useAuthStore()
 const profile = useProfileStore()
@@ -191,15 +145,11 @@ onMounted(() => {
   profile.load().catch((err) => toast.error(err?.message || 'Could not load profile.'))
 })
 import {
-  PhCheckCircle,
-  PhInfo,
   PhWhatsappLogo,
   PhPencil,
   PhKey,
   PhBell,
   PhSignOut,
-  PhPlus,
-  PhBank
 } from '@phosphor-icons/vue'
 
 const props = defineProps({
@@ -225,10 +175,12 @@ const inputBg = computed(() => props.dark ? '#1A1815' : '#fff')
 const businessFields = computed(() => {
   const p = profile.profile ?? {}
   return [
+    { label: 'Owner', value: p.name ?? '—' },
     { label: 'Business Name', value: p.businessName ?? '—' },
     { label: 'Category', value: p.businessCategory ?? '—' },
+    { label: 'Address', value: p.businessAddress ?? '—' },
     { label: 'LGA', value: p.lga ?? '—' },
-    { label: 'Phone Number', value: p.phoneNumber ?? p.phone ?? '—' },
+    { label: 'Phone Number', value: p.phoneNumber ?? '—' },
     { label: 'Email', value: p.email ?? '—' },
   ]
 })

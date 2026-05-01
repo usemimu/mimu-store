@@ -3,11 +3,17 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-12">
       <!-- Page Header -->
       <div class="mb-6 lg:mb-10">
+        <div
+          class="text-[11px] font-semibold tracking-[0.18em] uppercase mb-2"
+          :style="{ color: fg3 }"
+        >
+          {{ greetingPrefix }}
+        </div>
         <h1 class="text-3xl lg:text-5xl font-display font-light tracking-tight" :style="{ color: fg }">
-          Dashboard
+          {{ greetingName }}
         </h1>
         <p class="mt-2 text-sm lg:text-lg" :style="{ color: fg2 }">
-          Welcome back! Here's your screen performance overview.
+          Here's how <strong>{{ businessName }}</strong> is doing today.
         </p>
       </div>
 
@@ -32,8 +38,74 @@
         </div>
       </div>
 
+      <!-- Empty state — no screen yet, or a screen with zero lifetime
+           plays. Mirrors MyScreenView's "your screen is being prepared"
+           card so the dashboard doesn't lead with a misleading ₦0
+           hero before the host's first play has even happened. -->
+      <div
+        v-if="!hasAnyActivity"
+        class="rounded-2xl p-8 lg:p-10 mb-8 text-center"
+        :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+      >
+        <div
+          class="mx-auto mb-5 w-16 h-16 rounded-full flex items-center justify-center"
+          :style="{ background: dark ? 'rgba(181,84,48,0.15)' : '#FBF4F0' }"
+        >
+          <PhSparkle :size="32" class="text-clay-500" weight="bold" />
+        </div>
+        <h2 class="text-xl lg:text-2xl font-display font-light mb-3" :style="{ color: fg }">
+          {{ hasScreen ? 'Your first plays are on the way' : 'Your screen is being prepared' }}
+        </h2>
+        <p class="text-sm lg:text-base mb-6 max-w-md mx-auto" :style="{ color: fg2 }">
+          {{
+            hasScreen
+              ? "Once advertisers book your screen, you'll see plays, earnings, and payout estimates land here within minutes."
+              : "Our team is installing your screen at the venue. As soon as it goes live and starts playing ads, this dashboard fills with real numbers."
+          }}
+        </p>
+
+        <div
+          class="rounded-xl p-4 mb-6 max-w-md mx-auto text-left"
+          :style="{
+            background: dark ? 'rgba(255,255,255,0.04)' : '#F7F5F2',
+            border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : '#E8E0D4'}`,
+          }"
+        >
+          <div class="text-[11px] uppercase tracking-wider font-semibold mb-2" :style="{ color: fg3 }">
+            On file
+          </div>
+          <div class="text-sm space-y-1" :style="{ color: fg }">
+            <div><strong>{{ profile.profile?.businessName || '—' }}</strong></div>
+            <div :style="{ color: fg2 }">
+              {{ profile.profile?.businessAddress || profile.profile?.lga || '—' }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-3">
+          <router-link
+            to="/screen"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold no-underline cursor-pointer"
+            :style="{
+              background: 'transparent',
+              border: `1.5px solid ${dark ? 'rgba(255,255,255,0.16)' : '#DDD8D0'}`,
+              color: fg,
+            }"
+          >
+            View screen status
+          </router-link>
+          <router-link
+            to="/account"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold no-underline cursor-pointer"
+            style="background: #B55430; color: #fff;"
+          >
+            Add a bank account
+          </router-link>
+        </div>
+      </div>
+
       <!-- Stats Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
         <!-- Main Earnings Card -->
         <div class="md:col-span-2 bg-clay-500 rounded-2xl p-6 lg:p-8 text-white relative overflow-hidden">
           <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5"></div>
@@ -75,8 +147,9 @@
         </div>
       </div>
 
-      <!-- Charts and Details Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Charts and Details Grid — hidden alongside the stats grid
+           when there's no activity yet (empty-state card replaces both). -->
+      <div v-if="hasAnyActivity" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <!-- Chart -->
         <div class="lg:col-span-2 rounded-2xl p-6" :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }">
           <h3 class="text-sm font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
@@ -124,10 +197,52 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import { PhCalendarBlank, PhHeart, PhTrophy } from '@phosphor-icons/vue'
+import { PhCalendarBlank, PhHeart, PhTrophy, PhSparkle } from '@phosphor-icons/vue'
 import { earningsApi } from '../api/earnings'
 import { payoutsApi } from '../api/payouts'
 import { screensApi } from '../api/screens'
+import { useProfileStore } from '../stores/profile'
+
+const profile = useProfileStore()
+
+// Greeting strings. The admin sets the owner's name at invite time —
+// we render "Hello, Tunde" rather than the raw phone number when it's
+// available. Falls back through name → first segment of email → "there".
+const greetingPrefix = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const greetingName = computed(() => {
+  const p = profile.profile ?? {}
+  const name = (p.name || '').trim()
+  if (name) return name.split(' ')[0]
+  if (p.email) return p.email.split('@')[0]
+  return 'there'
+})
+
+const businessName = computed(() => profile.profile?.businessName || 'your store')
+
+// "Empty" branches off two signals: does the host have a screen at
+// all, and has anything ever played on it? Either is enough to flip
+// the dashboard into its real layout — a host whose screen just went
+// live shouldn't see the empty card past the very first heartbeat.
+const hasScreen = computed(() => {
+  const raw = screensQuery.data.value
+  if (!raw) return false
+  const list = Array.isArray(raw) ? raw : raw.data || raw.items || raw.screens || []
+  return list.length > 0 && Boolean(list[0]?.id)
+})
+
+const hasAnyActivity = computed(() => {
+  const summary = summaryQuery.data.value
+  if (!summary) return hasScreen.value // no probe yet → trust the screen flag
+  const allTimePlays = summary?.allTime?.plays ?? summary?.alltime?.plays ?? 0
+  const allTimeNaira = summary?.allTime?.nairaEarned ?? summary?.alltime?.nairaEarned ?? 0
+  return Number(allTimePlays) > 0 || Number(allTimeNaira) > 0
+})
 
 const props = defineProps({
   dark: { type: Boolean, default: false }
@@ -192,21 +307,37 @@ function formatNaira(n) {
   return `₦${n.toLocaleString('en-NG')}`
 }
 
-/** Pick the right slice from the summary response for the active period. */
+/**
+ * Pick the right slice from the summary response. The backend's
+ * EarningsSummaryDto uses camelCased period keys (`thisWeek`,
+ * `thisMonth`, `allTime`) while our period buttons use shorter ids
+ * (`week`, `month`, `alltime`). Map between them here so the rest
+ * of the view doesn't have to know.
+ */
+const PERIOD_KEY_MAP = {
+  today: 'today',
+  week: 'thisWeek',
+  month: 'thisMonth',
+  alltime: 'allTime',
+}
+
 function periodSlice(summary, periodId) {
   if (!summary) return null
-  // Most likely shapes (best-effort):
-  //   { today: {...}, week: {...}, month: {...}, alltime: {...} }
-  //   { today: {grossKobo, plays}, ... }
-  if (summary[periodId]) return summary[periodId]
-  // Flat shape: keys like todayGrossKobo / weekGrossKobo
-  return summary
+  const key = PERIOD_KEY_MAP[periodId] || periodId
+  return summary[key] ?? summary[periodId] ?? null
 }
 
 const currentData = computed(() => {
   const slice = periodSlice(summaryQuery.data.value, period.value) || {}
+  // Backend exposes earnings in naira (nairaEarned) for UI convenience.
+  // Older fallbacks kept for resilience if the shape ever changes.
   const grossNaira = toNaira(
-    slice.grossKobo ?? slice.gross ?? slice.amountKobo ?? slice.amount ?? slice.earned,
+    slice.nairaEarned ??
+      slice.grossKobo ??
+      slice.gross ??
+      slice.amountKobo ??
+      slice.amount ??
+      slice.earned,
   )
   const plays = slice.plays ?? slice.impressions ?? 0
   const lastSeen = slice.lastSeenAt || slice.since || '—'
@@ -236,9 +367,16 @@ const periodLabel = computed(() => {
 const bars = computed(() => {
   const raw = byDayQuery.data.value
   if (!raw) return []
-  const series = Array.isArray(raw) ? raw : raw.data || raw.items || raw.days || []
+  // Backend returns `{ dailyEarnings: [...], totalDays }`. Older
+  // fallbacks (`data`/`items`/`days`/array) kept defensive in case
+  // the shape varies.
+  const series = Array.isArray(raw)
+    ? raw
+    : raw.dailyEarnings || raw.data || raw.items || raw.days || []
   if (!series.length) return []
-  const values = series.map((d) => toNaira(d.grossKobo ?? d.amountKobo ?? d.amount ?? d.value))
+  const values = series.map((d) =>
+    toNaira(d.nairaEarned ?? d.grossKobo ?? d.amountKobo ?? d.amount ?? d.value),
+  )
   const max = Math.max(...values, 1)
   return values.map((v) => Math.round((v / max) * 100))
 })
@@ -332,7 +470,7 @@ const lifetime = computed(() => {
   if (totalPlays > 0) parts.push(`${totalPlays.toLocaleString()} plays`)
   return {
     headline: parts.join(' · ') || 'Lifetime',
-    detail: 'Across the lifetime of your screen on the mìmú network.',
+    detail: 'Across the lifetime of your screen on the Mimuads network.',
   }
 })
 </script>

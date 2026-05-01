@@ -33,6 +33,15 @@
         @submit.prevent="onSubmit"
       >
         <div class="space-y-5">
+          <Field :dark="dark" label="Your name">
+            <input
+              v-model="form.name"
+              class="w-full rounded-xl py-3 px-4 text-base"
+              :style="inputStyle"
+              placeholder="e.g. Tunde Adebayo"
+            />
+          </Field>
+
           <Field :dark="dark" label="Business name">
             <input
               v-model="form.businessName"
@@ -42,19 +51,37 @@
           </Field>
 
           <Field :dark="dark" label="Category">
-            <input
+            <select
               v-model="form.businessCategory"
               class="w-full rounded-xl py-3 px-4 text-base"
               :style="inputStyle"
-            />
+            >
+              <option value="" disabled>Select a category…</option>
+              <option v-for="c in BUSINESS_CATEGORIES" :key="c" :value="c">
+                {{ c.charAt(0).toUpperCase() + c.slice(1) }}
+              </option>
+            </select>
           </Field>
 
           <Field :dark="dark" label="LGA">
-            <input
+            <select
               v-model="form.lga"
               class="w-full rounded-xl py-3 px-4 text-base"
               :style="inputStyle"
-            />
+            >
+              <option value="" disabled>Select an LGA…</option>
+              <option v-for="l in LAGOS_LGAS" :key="l" :value="l">{{ l }}</option>
+            </select>
+          </Field>
+
+          <Field :dark="dark" label="Business address">
+            <textarea
+              v-model="form.businessAddress"
+              rows="2"
+              placeholder="Street, building, landmark"
+              class="w-full rounded-xl py-3 px-4 text-base"
+              :style="inputStyle"
+            ></textarea>
           </Field>
         </div>
 
@@ -96,9 +123,37 @@ const router = useRouter()
 const profile = useProfileStore()
 const toast = useToastStore()
 
+// Mirror the admin's invite form (mimu-admin HostInvite.vue). If the
+// admin selects a category that isn't in this list it'll still appear
+// in the dropdown via the v-model binding — but for new edits the
+// host picks from the same canonical set.
+const BUSINESS_CATEGORIES = [
+  'pharmacy',
+  'salon',
+  'restaurant',
+  'eatery',
+  'supermarket',
+  'electronics',
+  'fashion',
+  'fitness',
+  'automotive',
+  'grocery',
+  'clinic',
+  'other',
+]
+
+const LAGOS_LGAS = [
+  'Agege', 'Ajeromi-Ifelodun', 'Alimosho', 'Amuwo-Odofin', 'Apapa',
+  'Badagry', 'Epe', 'Eti-Osa', 'Ibeju-Lekki', 'Ifako-Ijaiye',
+  'Ikeja', 'Ikorodu', 'Kosofe', 'Lagos Island', 'Lagos Mainland',
+  'Mushin', 'Ojo', 'Oshodi-Isolo', 'Shomolu', 'Surulere',
+]
+
 const form = reactive({
+  name: '',
   businessName: '',
   businessCategory: '',
+  businessAddress: '',
   lga: '',
 })
 const busy = ref(false)
@@ -120,8 +175,10 @@ onMounted(async () => {
   try {
     const p = await profile.load()
     if (p) {
+      form.name = p.name ?? ''
       form.businessName = p.businessName ?? ''
       form.businessCategory = p.businessCategory ?? ''
+      form.businessAddress = p.businessAddress ?? ''
       form.lga = p.lga ?? ''
     }
   } catch (err) {
@@ -133,7 +190,7 @@ async function onSubmit() {
   // Send only changed fields. Backend treats absent keys as "leave alone".
   const original = profile.profile ?? {}
   const patch = {}
-  for (const k of ['businessName', 'businessCategory', 'lga']) {
+  for (const k of ['name', 'businessName', 'businessCategory', 'businessAddress', 'lga']) {
     if (form[k] !== original[k]) patch[k] = form[k]
   }
   if (Object.keys(patch).length === 0) {
