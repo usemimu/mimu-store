@@ -32,7 +32,8 @@ const ForgotPasswordDto = z.object({
 })
 
 const ResetPasswordDto = z.object({
-  token: z.string().min(1),
+  // 6-digit numeric code, matches backend `ResetPasswordSchema`.
+  token: z.string().regex(/^\d{6}$/),
   newPassword: z.string().min(8),
 })
 

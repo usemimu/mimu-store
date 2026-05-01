@@ -11,6 +11,7 @@ import AccountView from '../views/AccountView.vue'
 import EditBusinessView from '../views/EditBusinessView.vue'
 import ChangePasswordView from '../views/ChangePasswordView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
+import NotFoundView from '../views/NotFoundView.vue'
 import SetPasswordStep from '../views/onboarding/SetPasswordStep.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -56,6 +57,10 @@ const router = createRouter({
     // previous build's wizard) lands on the password step.
     { path: '/onboarding', redirect: '/onboarding/password' },
     { path: '/onboarding/:rest(.*)*', redirect: '/onboarding/password' },
+
+    // Catch-all 404 — shown briefly, then auto-redirected to `/`
+    // (splash routes by auth status).
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
   ],
 })
 
