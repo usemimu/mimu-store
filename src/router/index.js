@@ -11,6 +11,7 @@ import AccountView from '../views/AccountView.vue'
 import EditBusinessView from '../views/EditBusinessView.vue'
 import ChangePasswordView from '../views/ChangePasswordView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
+import EligibilityView from '../views/EligibilityView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import SetPasswordStep from '../views/onboarding/SetPasswordStep.vue'
 import { useAuthStore } from '../stores/auth'
@@ -42,6 +43,7 @@ const router = createRouter({
     { path: '/account/edit-business', name: 'edit-business', component: EditBusinessView, meta: { requiresAuth: true } },
     { path: '/account/change-password', name: 'change-password', component: ChangePasswordView, meta: { requiresAuth: true } },
     { path: '/account/notifications', name: 'notifications', component: NotificationsView, meta: { requiresAuth: true } },
+    { path: '/eligibility', name: 'eligibility', component: EligibilityView, meta: { requiresAuth: true } },
     // Onboarding is a single step: set a password. After that the
     // host lands on the dashboard. Business details / bank details
     // are not part of the wizard — admins pre-fill business info at

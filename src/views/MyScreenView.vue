@@ -234,6 +234,92 @@
         </div>
       </div>
 
+      <!-- Ad mix audit — what plays on this screen and what got
+           excluded by your tags / blocks / allows. Reuses the
+           canonical exclusion verdict the scheduler runs. -->
+      <div v-if="hasScreen && primaryScreenId" class="mb-8">
+        <h2 class="text-sm lg:text-base font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
+          What's playing on your screen
+        </h2>
+        <div
+          class="rounded-2xl p-5 lg:p-6"
+          :style="{ background: cardBg, border: cardBorder, boxShadow: cardShadow }"
+        >
+          <div v-if="auditQuery.isLoading.value" class="text-sm" :style="{ color: fg2 }">
+            Loading…
+          </div>
+          <div v-else-if="auditQuery.error.value" class="text-sm" style="color: #dc2626;">
+            {{ auditQuery.error.value?.message || 'Could not load audit.' }}
+          </div>
+          <template v-else-if="audit">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div class="rounded-xl p-3" :style="{ background: dark ? 'rgba(255,255,255,0.05)' : '#F7F5F2' }">
+                <div class="text-xl font-bold" :style="{ color: fg }">{{ audit.summary.kept }}</div>
+                <div class="text-xs mt-0.5" :style="{ color: fg2 }">Kept</div>
+              </div>
+              <div class="rounded-xl p-3" :style="{ background: dark ? 'rgba(255,255,255,0.05)' : '#F7F5F2' }">
+                <div class="text-xl font-bold" :style="{ color: fg }">{{ audit.summary.excludedCompetitor }}</div>
+                <div class="text-xs mt-0.5" :style="{ color: fg2 }">Competitor</div>
+              </div>
+              <div class="rounded-xl p-3" :style="{ background: dark ? 'rgba(255,255,255,0.05)' : '#F7F5F2' }">
+                <div class="text-xl font-bold" :style="{ color: fg }">{{ audit.summary.excludedBlocked }}</div>
+                <div class="text-xs mt-0.5" :style="{ color: fg2 }">Blocked</div>
+              </div>
+              <div class="rounded-xl p-3" :style="{ background: dark ? 'rgba(255,255,255,0.05)' : '#F7F5F2' }">
+                <div class="text-xl font-bold" :style="{ color: fg }">{{ audit.summary.allowedOverride }}</div>
+                <div class="text-xs mt-0.5" :style="{ color: fg2 }">Allow override</div>
+              </div>
+            </div>
+
+            <details v-if="auditExcluded.length > 0" class="mb-3">
+              <summary class="cursor-pointer text-sm font-semibold py-2" :style="{ color: fg }">
+                Excluded ({{ auditExcluded.length }})
+              </summary>
+              <ul class="mt-2 divide-y" :style="{ borderColor: divLine }">
+                <li
+                  v-for="c in auditExcluded"
+                  :key="c.campaignId"
+                  class="py-2 text-sm"
+                  :style="{ color: fg }"
+                >
+                  <div class="font-medium">{{ c.advertiserName || c.advertiserId }}</div>
+                  <div class="text-xs mt-0.5" :style="{ color: fg2 }">
+                    {{ c.campaignName }} · <em>{{ c.reasonDetails || c.reason }}</em>
+                  </div>
+                </li>
+              </ul>
+            </details>
+
+            <details>
+              <summary class="cursor-pointer text-sm font-semibold py-2" :style="{ color: fg }">
+                Eligible to play ({{ auditKept.length }})
+              </summary>
+              <ul v-if="auditKept.length > 0" class="mt-2 divide-y" :style="{ borderColor: divLine }">
+                <li
+                  v-for="c in auditKept"
+                  :key="c.campaignId"
+                  class="py-2 text-sm"
+                  :style="{ color: fg }"
+                >
+                  <div class="font-medium">{{ c.advertiserName || c.advertiserId }}</div>
+                  <div class="text-xs mt-0.5" :style="{ color: fg2 }">{{ c.campaignName }}</div>
+                </li>
+              </ul>
+              <div v-else class="text-sm py-2" :style="{ color: fg2 }">
+                Nothing eligible right now.
+              </div>
+            </details>
+
+            <p class="text-xs mt-4" :style="{ color: fg3 }">
+              Adjust your tags, blocks, and allows from
+              <RouterLink to="/eligibility" class="underline" :style="{ color: fg2 }">
+                Ad protection
+              </RouterLink>.
+            </p>
+          </template>
+        </div>
+      </div>
+
       <!-- Promotions list -->
       <div v-if="promotionsQuery.data.value" class="mb-8">
         <h2 class="text-sm lg:text-base font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
@@ -319,6 +405,8 @@ import {
 import { screensApi } from '../api/screens'
 import { promotionsApi } from '../api/promotions'
 import { supportApi } from '../api/support'
+import { eligibilityApi } from '../api/eligibility'
+import { RouterLink } from 'vue-router'
 import { useToastStore } from '../stores/toast'
 import { useProfileStore } from '../stores/profile'
 import { useOptimisticPatchMutation } from '../composables/useOptimisticRowMutation'
@@ -357,6 +445,29 @@ function rawList() {
   if (!raw) return []
   return Array.isArray(raw) ? raw : raw.data || raw.items || raw.screens || []
 }
+
+// Primary screen id — the one we audit. Most hosts have exactly
+// one screen; future multi-screen ops would need per-screen tabs.
+const primaryScreenId = computed(() => {
+  const list = rawList()
+  return list[0]?.id ?? null
+})
+
+// Eligibility audit — same canonical query the scheduler runs.
+// `enabled` waits for the screen list so we don't fire before we
+// know which screen to audit.
+const auditQuery = useQuery({
+  queryKey: computed(() => ['host', 'screen-audit', primaryScreenId.value]),
+  queryFn: () => eligibilityApi.auditScreen(primaryScreenId.value),
+  enabled: computed(() => !!primaryScreenId.value),
+})
+const audit = computed(() => auditQuery.data.value)
+const auditExcluded = computed(
+  () => (audit.value?.candidates ?? []).filter((c) => c.status === 'excluded'),
+)
+const auditKept = computed(
+  () => (audit.value?.candidates ?? []).filter((c) => c.status === 'kept'),
+)
 
 const hasScreen = computed(() => {
   const list = rawList()

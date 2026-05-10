@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { PhHouse, PhCurrencyNgn, PhMonitor, PhShareNetwork, PhUser, PhWhatsappLogo } from '@phosphor-icons/vue'
+import { PhHouse, PhCurrencyNgn, PhMonitor, PhShareNetwork, PhUser, PhWhatsappLogo, PhShieldCheck } from '@phosphor-icons/vue'
 
 defineProps({
   dark: {
@@ -64,6 +64,7 @@ const navigation = [
   { id: 'dashboard', icon: PhHouse, label: 'Dashboard' },
   { id: 'earnings', icon: PhCurrencyNgn, label: 'Earnings' },
   { id: 'screen', icon: PhMonitor, label: 'My Screen' },
+  { id: 'eligibility', icon: PhShieldCheck, label: 'Ad protection' },
   { id: 'referrals', icon: PhShareNetwork, label: 'Referrals' },
   { id: 'account', icon: PhUser, label: 'Account' }
 ]
