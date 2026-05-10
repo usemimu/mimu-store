@@ -10,6 +10,31 @@
         </p>
       </div>
 
+      <!-- Top-of-page alert when any screen is offline. The per-card
+           status pill is the canonical source; this is here so a
+           host who's scrolled below the fold (looking at promotions
+           or earnings) doesn't miss that their panel has gone dark.
+           Auto-refresh on the screens query (30s) clears it once
+           the player heartbeats again. -->
+      <div
+        v-if="hasScreen && anyScreenOffline"
+        class="rounded-2xl p-4 mb-6 flex items-center gap-3"
+        :style="{
+          background: dark ? 'rgba(220,38,38,0.12)' : '#FCEAEA',
+          border: `1px solid ${dark ? 'rgba(220,38,38,0.3)' : '#F5C2C2'}`,
+        }"
+      >
+        <div class="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0"></div>
+        <div class="flex-1 text-sm">
+          <span class="font-semibold" :style="{ color: dark ? '#F5A0A0' : '#9F1F1F' }">
+            {{ offlineCount === 1 ? 'Your screen is offline' : `${offlineCount} of your screens are offline` }}
+          </span>
+          <span class="ml-1" :style="{ color: fg2 }">
+            — no heartbeat in the last 5 minutes. Power, network, or hardware issue.
+          </span>
+        </div>
+      </div>
+
       <div v-if="screensQuery.isLoading.value" class="rounded-2xl p-6" :style="{ background: cardBg, border: cardBorder, color: fg2 }">
         Loading…
       </div>
@@ -320,6 +345,21 @@
         </div>
       </div>
 
+      <!-- Audio settings — host-side control over whether the
+           screen plays sound and during which hours. Wires to the
+           server's `audio_config` jsonb column; player picks up
+           changes via ConfigSyncWorker. -->
+      <div v-if="hasScreen && primaryScreenId && audioConfigQuery.data.value" class="mb-8">
+        <h2 class="text-sm lg:text-base font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
+          Sound
+        </h2>
+        <AudioConfigCard
+          :screen-id="primaryScreenId"
+          :initial="audioConfigQuery.data.value.audio"
+          :dark="dark"
+        />
+      </div>
+
       <!-- Promotions list -->
       <div v-if="promotionsQuery.data.value" class="mb-8">
         <h2 class="text-sm lg:text-base font-semibold tracking-wider uppercase mb-4" :style="{ color: fg3 }">
@@ -406,6 +446,7 @@ import { screensApi } from '../api/screens'
 import { promotionsApi } from '../api/promotions'
 import { supportApi } from '../api/support'
 import { eligibilityApi } from '../api/eligibility'
+import AudioConfigCard from '../components/AudioConfigCard.vue'
 import { RouterLink } from 'vue-router'
 import { useToastStore } from '../stores/toast'
 import { useProfileStore } from '../stores/profile'
@@ -431,7 +472,26 @@ const divLine = computed(() => props.dark ? 'rgba(255,255,255,0.06)' : '#F2EFE9'
 const screensQuery = useQuery({
   queryKey: ['host', 'screens'],
   queryFn: () => screensApi.list(),
+  // Refetch every 30s so the status pill is live without a page
+  // reload. Player heartbeats every 60s; the server's reconciler
+  // flips status to `offline` after 5 missed heartbeats. 30s here
+  // is fast enough that a host watching the page sees state
+  // changes within ~30s of them happening.
+  refetchInterval: 30_000,
+  // Re-run on tab refocus so a host who switches back to this tab
+  // after a while sees a fresh state immediately.
+  refetchOnWindowFocus: true,
 })
+
+// Top-of-page banner trigger: any screen offline → show the alert.
+// The per-screen pill is still authoritative; this is just so the
+// host doesn't have to scroll to a specific card to notice.
+const anyScreenOffline = computed(() =>
+  rawList().some((s) => (s.status || '').toLowerCase() === 'offline'),
+)
+const offlineCount = computed(
+  () => rawList().filter((s) => (s.status || '').toLowerCase() === 'offline').length,
+)
 
 // `hasScreen` decides whether the page renders the rich status / free
 // slot / promotions layout, or the empty-state explainer card. We
@@ -459,6 +519,15 @@ const primaryScreenId = computed(() => {
 const auditQuery = useQuery({
   queryKey: computed(() => ['host', 'screen-audit', primaryScreenId.value]),
   queryFn: () => eligibilityApi.auditScreen(primaryScreenId.value),
+  enabled: computed(() => !!primaryScreenId.value),
+})
+
+// Audio config seed — the AudioConfigCard's `initial` prop. We
+// only need the FIRST value; subsequent edits flow through the
+// card's local state + PATCH responses, not back through this query.
+const audioConfigQuery = useQuery({
+  queryKey: computed(() => ['host', 'screen-audio-config', primaryScreenId.value]),
+  queryFn: () => screensApi.getAudioConfig(primaryScreenId.value),
   enabled: computed(() => !!primaryScreenId.value),
 })
 const audit = computed(() => auditQuery.data.value)
