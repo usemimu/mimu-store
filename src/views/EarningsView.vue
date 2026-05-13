@@ -13,7 +13,11 @@
 
       <!-- Empty state — no lifetime earnings recorded yet. Mirrors the
            dashboard + screen empty-state pattern so the host doesn't
-           land on a misleading "₦0 earned · No upcoming payout" page. -->
+           land on a misleading "₦0 earned · No upcoming payout" page.
+           CTA branches on whether a verified bank is on file:
+             - no bank → push to /account to set one up
+             - bank present → reassure with "first payout is coming",
+               no CTA (nothing the host can do but wait for plays). -->
       <div
         v-if="!hasEarnings"
         class="rounded-2xl p-8 lg:p-10 mb-8 text-center"
@@ -26,12 +30,19 @@
           <PhCoins :size="32" class="text-clay-500" weight="bold" />
         </div>
         <h2 class="text-xl lg:text-2xl font-display font-light mb-3" :style="{ color: fg }">
-          No earnings yet — but here's how it works
+          {{ hasBank ? 'Your first payout is on the way' : "No earnings yet — but here's how it works" }}
         </h2>
         <p class="text-sm lg:text-base mb-6 max-w-md mx-auto" :style="{ color: fg2 }">
-          Each ad that plays on your screen credits your account. Payouts
-          run on the 1st of every month, with 5% withholding tax deducted.
-          Minimum balance to trigger a payout is ₦1,000.
+          <template v-if="hasBank">
+            Your bank account is verified. Ads playing on your screen are
+            crediting your account. Payouts run on the 1st of every month
+            (or your selected cadence) once your balance is over ₦1,000.
+          </template>
+          <template v-else>
+            Each ad that plays on your screen credits your account. Payouts
+            run on the 1st of every month, with 5% withholding tax deducted.
+            Minimum balance to trigger a payout is ₦1,000.
+          </template>
         </p>
 
         <div
@@ -53,6 +64,7 @@
         </div>
 
         <router-link
+          v-if="!hasBank"
           to="/account"
           class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold no-underline cursor-pointer"
           style="background: #B55430; color: #fff;"
@@ -220,6 +232,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { PhInfo, PhBank, PhCoins } from '@phosphor-icons/vue'
 import { earningsApi } from '../api/earnings'
 import { payoutsApi } from '../api/payouts'
+import { profileApi } from '../api/profile'
 import { useToastStore } from '../stores/toast'
 
 const props = defineProps({
@@ -248,6 +261,22 @@ const upcomingQuery = useQuery({
 const historyQuery = useQuery({
   queryKey: ['host', 'payouts', 'history'],
   queryFn: () => payoutsApi.history(),
+})
+
+// Bank-presence is consulted by the empty-state CTA only; cache is fine
+// for the lifetime of the page since the host can't add/remove a bank
+// without leaving this view.
+const bankAccountsQuery = useQuery({
+  queryKey: ['host', 'profile', 'bank-accounts'],
+  queryFn: () => profileApi.listBankAccounts(),
+})
+
+const hasBank = computed(() => {
+  const raw = bankAccountsQuery.data.value
+  const list = Array.isArray(raw) ? raw : raw?.bankAccounts || raw?.accounts || raw?.data || []
+  // Treat ANY confirmed/verified bank as "has bank" — primary flag is
+  // about which one we'd pay to, not whether they exist.
+  return list.some((b) => b.verified || b.confirmed || b.bankAccountVerified)
 })
 
 function toNaira(value) {

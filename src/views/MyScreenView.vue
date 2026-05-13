@@ -216,10 +216,14 @@
 
           <!-- Upload form -->
           <div v-if="screen.id" class="space-y-3">
+            <!-- Host uploads are restricted to landscape MP4 video.
+                 The accept filter keeps the OS file picker filtered to
+                 just .mp4; the handler enforces landscape (width >
+                 height) before kicking off the upload. -->
             <input
               ref="fileInput"
               type="file"
-              accept="image/jpeg,image/png,video/mp4"
+              accept="video/mp4"
               class="hidden"
               @change="onFilePicked"
             />
@@ -375,6 +379,21 @@
             class="flex items-center gap-4 p-5"
             :style="{ borderBottom: i < promotions.length - 1 ? `1px solid ${divLine}` : 'none' }"
           >
+            <!-- Cover thumbnail. Auto-generated from the video's
+                 first frame during upload; always present once the
+                 promotion has moved past `uploading`. -->
+            <div
+              class="rounded-lg overflow-hidden flex-shrink-0"
+              style="width: 80px; height: 45px; background: #2a2723;"
+            >
+              <img
+                v-if="p.coverCdnUrl"
+                :src="p.coverCdnUrl"
+                :alt="p.name"
+                class="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
             <div class="flex-1">
               <div class="text-sm lg:text-base font-semibold" :style="{ color: fg }">{{ p.name }}</div>
               <div class="text-xs mt-1" :style="{ color: fg3 }">
@@ -382,7 +401,7 @@
               </div>
             </div>
             <button
-              v-if="p.status === 'approved' || p.status === 'inactive'"
+              v-if="p.status === 'approved' || p.status === 'paused'"
               class="bg-moss-500 text-white border-none rounded-lg font-body text-xs font-bold py-2 px-3 cursor-pointer hover:opacity-90"
               :disabled="busyId(p.id)"
               @click="onActivate(p)"
@@ -397,6 +416,15 @@
               @click="onDeactivate(p)"
             >
               Pause
+            </button>
+            <button
+              type="button"
+              class="bg-transparent rounded-lg font-body text-xs font-bold py-2 px-3 cursor-pointer hover:opacity-80"
+              :style="{ border: `1.5px solid ${inputBorder}`, color: '#B55430' }"
+              @click="onRemove(p)"
+              aria-label="Remove promotion"
+            >
+              Remove
             </button>
           </div>
         </div>
@@ -443,7 +471,12 @@ import {
   PhWhatsappLogo,
 } from '@phosphor-icons/vue'
 import { screensApi } from '../api/screens'
-import { promotionsApi } from '../api/promotions'
+import {
+  promotionsApi,
+  sha256Hex,
+  videoMetadata,
+  extractVideoCover,
+} from '../api/promotions'
 import { supportApi } from '../api/support'
 import { eligibilityApi } from '../api/eligibility'
 import AudioConfigCard from '../components/AudioConfigCard.vue'
@@ -713,29 +746,76 @@ async function onFilePicked(e) {
     toast.error('No screen yet — finish onboarding first.')
     return
   }
+  // Host uploads are restricted to landscape MP4. Mobile pickers
+  // sometimes return a video without a clean MIME type — accept
+  // anything that starts with `video/` here but normalise to
+  // 'video/mp4' for the backend (the accept filter on the input
+  // already restricts to .mp4 in the file picker UI).
+  if (!file.type.startsWith('video/')) {
+    toast.error('Only MP4 video is supported for promotions.')
+    e.target.value = ''
+    return
+  }
+
   uploading.value = true
   uploadProgress.value = 0
   try {
+    // Read video metadata up-front. We need width/height to verify
+    // landscape and durationSeconds for the backend's check
+    // constraint. SHA-256 + size are the integrity contract the
+    // /complete endpoint validates against.
+    const meta = await videoMetadata(file)
+    if (meta.width <= meta.height) {
+      toast.error(
+        `Video must be landscape (got ${meta.width}×${meta.height}).`,
+      )
+      uploading.value = false
+      e.target.value = ''
+      return
+    }
+    const [cover, sha] = await Promise.all([
+      extractVideoCover(file).catch((err) => {
+        // Fail fast: we require a cover. A missing one would make
+        // the host's list look broken and would let /complete reject
+        // the upload anyway.
+        throw new Error(
+          `Could not generate cover thumbnail: ${err.message}. ` +
+            'Try a different MP4 (the file may be encrypted or codec-incompatible).',
+        )
+      }),
+      sha256Hex(file),
+    ])
+
     const intent = await promotionsApi.uploadIntent({
-      fileName: file.name,
-      fileSize: file.size,
-      contentType: file.type,
-      screenId: screen.value.id,
-    })
-    await promotionsApi.putBytes({
-      url: intent.uploadUrl,
-      file,
-      headers: intent.headers || {},
-      onProgress: (frac) => {
-        uploadProgress.value = frac
-      },
-    })
-    await promotionsApi.create({
-      promotionId: intent.promotionId,
       name: form.value.name.trim(),
       description: form.value.description.trim() || undefined,
       screenId: screen.value.id,
+      originalFileName: file.name,
+      format: 'video',
+      contentType: 'video/mp4',
+      sizeBytes: file.size,
+      sha256: sha,
+      width: meta.width,
+      height: meta.height,
+      durationSeconds: meta.durationSeconds,
     })
+    // Upload video and cover in parallel. The video PUT drives the
+    // progress bar (it's by far the larger payload); the cover is a
+    // small JPEG (typically < 200KB) and finishes well before.
+    await Promise.all([
+      promotionsApi.putBytes({
+        url: intent.uploadUrl,
+        file,
+        onProgress: (frac) => {
+          uploadProgress.value = frac
+        },
+      }),
+      promotionsApi.putBytes({
+        url: intent.coverUploadUrl,
+        file: cover,
+      }),
+    ])
+    await promotionsApi.complete(intent.promotionId)
     toast.success('Uploaded — will go live once approved.')
     form.value.name = ''
     form.value.description = ''
@@ -746,6 +826,17 @@ async function onFilePicked(e) {
   } finally {
     uploading.value = false
     uploadProgress.value = 0
+  }
+}
+
+async function onRemove(p) {
+  if (!confirm(`Remove "${p.name}" from your screen?`)) return
+  try {
+    await promotionsApi.remove(p.id)
+    toast.success('Promotion removed.')
+    await qc.invalidateQueries({ queryKey: ['host', 'promotions'] })
+  } catch (err) {
+    toast.error(err?.message || 'Could not remove promotion.')
   }
 }
 
