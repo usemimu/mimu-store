@@ -35,14 +35,14 @@
           :style="{ color: fg }"
           for="phoneOrEmail"
         >
-          Phone or email
+          Email
         </label>
         <input
           id="phoneOrEmail"
           v-model.trim="phoneOrEmail"
           type="text"
           autocomplete="username"
-          placeholder="you@example.com or +2348012345678"
+          placeholder="you@example.com "
           class="w-full rounded-xl py-3 px-4 text-base"
           :style="{
             background: inputBg,

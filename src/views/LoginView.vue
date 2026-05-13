@@ -30,13 +30,13 @@
       >
         <div class="mb-5">
           <label class="text-sm font-semibold mb-2 block" :style="{ color: fg }"
-            >Email or phone</label
-          >
+            >Email
+          </label>
           <input
             v-model="phoneOrEmail"
             type="text"
             autocomplete="username"
-            placeholder="you@example.com or +2348012345678"
+            placeholder="you@example"
             class="w-full rounded-xl py-3 px-4 text-base"
             :style="{
               background: inputBg,
