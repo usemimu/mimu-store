@@ -26,6 +26,10 @@ uploads/
 .qodo/
 .claude/
 
+# PWA service-worker scratch — vite-plugin-pwa regenerates these on
+# every dev run, so they're never source-of-truth.
+dev-dist/
+
 .env
 .env.development
 .env.production
